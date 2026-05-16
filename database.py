@@ -38,6 +38,7 @@ def init_db():
         ("last_rob",      "TEXT"),
         ("last_interest", "TEXT"),
         ("married_to",    "INTEGER DEFAULT 0"),
+        ("last_game",     "TEXT"),
     ]:
         try:
             c.execute(f"ALTER TABLE players ADD COLUMN {col} {definition}")

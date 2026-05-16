@@ -258,6 +258,11 @@ def cmd_slots(message):
     if p["chips"] < bet:
         bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*.")
         return
+    ok, msg = db.can_play_game(message.from_user.id)
+    if not ok:
+        bot.reply_to(message, msg)
+        return
+    db.set_last_game(message.from_user.id)
     slot_msg = bot.send_dice(message.chat.id, emoji="🎰")
     value = slot_msg.dice.value
     time.sleep(3)
@@ -569,6 +574,11 @@ def cmd_dice(message):
     if p["chips"] < bet:
         bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*.")
         return
+    ok, msg = db.can_play_game(message.from_user.id)
+    if not ok:
+        bot.reply_to(message, msg)
+        return
+    db.set_last_game(message.from_user.id)
     dice_msg = bot.send_dice(message.chat.id, emoji="🎲")
     value = dice_msg.dice.value
     time.sleep(4)
