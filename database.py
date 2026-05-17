@@ -9,7 +9,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 def get_conn():
     if DATABASE_URL:
         import psycopg2
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        conn = psycopg2.connect(DATABASE_URL, sslmode="require", connect_timeout=10)
         return conn, "pg"
     else:
         import sqlite3
