@@ -15,6 +15,7 @@ from telebot import types
 
 import database as db
 import features
+import activities
 from config import Config
 from games import slots, blackjack, dice, roulette
 
@@ -120,28 +121,45 @@ def cmd_help(message):
         "/interest — Claim 3% daily interest\n\n"
 
         "💼 *Jobs*\n"
-        "/work — Do a job, earn chips (1hr cooldown)\n"
-        "/crime — Risky crime, big reward (2hr cooldown)\n"
-        "/heist `[bet]` — Group heist in chat\n\n"
+        "/work — Random job, earn chips *(3min cooldown)*\n"
+        "/crime — Risky crime, big reward *(15min cooldown)*\n"
+        "/heist `[bet]` — Group heist *(30min cooldown)*\n\n"
 
         "🔫 *Street*\n"
-        "/rob — Reply to someone to rob them\n"
-        "/gift `[amount]` — Reply to someone to gift chips\n\n"
+        "/rob — Reply to someone to rob them *(2hr cooldown)*\n"
+        "/gift `[amount]` — Reply to gift chips\n\n"
 
         "💍 *Social*\n"
         "/marry — Reply to someone to propose\n"
         "/divorce — End your marriage\n\n"
 
-        "🎮 *Games*\n"
-        "/slots `[bet]` — 🎰 Spin the slot machine\n"
+        "🎣 *Activities*\n"
+        "/fish — Start fishing *(use /collect fish when done)*\n"
+        "/mine — Start mining *(use /collect mine when done)*\n"
+        "/farm — Start farming *(use /collect farm when done)*\n"
+        "/collect `[fish/mine/farm]` — Collect your rewards\n\n"
+
+        "🏪 *Shop & Inventory*\n"
+        "/shop — Browse all tool categories\n"
+        "/shop `fishing` — View fishing rods\n"
+        "/shop `mining` — View pickaxes\n"
+        "/shop `farming` — View farming tools\n"
+        "/buy `[item]` — Purchase a tool\n"
+        "/equip `[item]` — Equip owned tool\n"
+        "/inventory — View all your tools\n\n"
+
+        "🎮 *Casino Games*\n"
+        "/slots `[bet]` — 🎰 Spin slot machine\n"
         "/dice `[type] [bet]` — 🎲 Bet on dice roll\n"
         "/bj `[bet]` — 🃏 Multiplayer blackjack\n"
-        "/roulette `[type] [value] [bet]` — 🎡 Roulette\n\n"
+        "/roulette `[type] [value] [bet]` — 🎡 Roulette\n"
+        "/rbet `[amount]` — 🎲 Risk bet game\n"
+        "/rtake — 💰 Cash out from rbet\n\n"
 
         "*🎲 Dice types:*\n"
         "`/dice even 1000` `/dice odd 1000`\n"
         "`/dice high 1000` `/dice low 1000`\n"
-        "`/dice 6 1000` — exact number (x6)\n\n"
+        "`/dice 6 1000` — exact number *(x6)*\n\n"
 
         "*🎡 Roulette types:*\n"
         "`/roulette color red 1000`\n"
@@ -151,9 +169,34 @@ def cmd_help(message):
         "`/roulette odd_even odd 1000`\n"
         "`/roulette dozen 1st 1000`\n\n"
 
-        f"Min bet: *{fmt(Config.MIN_BET)}* | Max bet: *{fmt(Config.MAX_BET)}*")
+        "*🎣 Fishing Rods:*\n"
+        "🪵 Wooden Rod — Free | ⏰ 30min\n"
+        "🎣 Basic Rod — 5,000 | ⏰ 25min\n"
+        "🥈 Silver Rod — 25,000 | ⏰ 20min\n"
+        "🥇 Golden Rod — 100,000 | ⏰ 15min\n"
+        "💎 Diamond Rod — 500,000 | ⏰ 10min\n"
+        "🔮 Magic Rod — 2,000,000 | ⏰ 7min\n"
+        "⭐ Legendary Rod — 10,000,000 | ⏰ 5min\n\n"
 
-# ── /balance ──────────────────────────────────────────────────────────
+        "*⛏️ Pickaxes:*\n"
+        "🪨 Stone — Free | ⏰ 30min\n"
+        "⚙️ Iron — 5,000 | ⏰ 25min\n"
+        "🥈 Silver — 25,000 | ⏰ 20min\n"
+        "🥇 Gold — 100,000 | ⏰ 15min\n"
+        "💎 Diamond — 500,000 | ⏰ 10min\n"
+        "🔮 Enchanted — 2,000,000 | ⏰ 7min\n"
+        "⭐ Legendary — 10,000,000 | ⏰ 5min\n\n"
+
+        "*🌾 Farming Tools:*\n"
+        "🤲 Bare Hands — Free | ⏰ 30min\n"
+        "🪚 Basic Hoe — 5,000 | ⏰ 25min\n"
+        "🥈 Silver Hoe — 25,000 | ⏰ 20min\n"
+        "🥇 Golden Hoe — 100,000 | ⏰ 15min\n"
+        "💎 Diamond Hoe — 500,000 | ⏰ 10min\n"
+        "🚜 Magic Tractor — 2,000,000 | ⏰ 7min\n"
+        "⭐ Legendary Tractor — 10,000,000 | ⏰ 5min\n\n"
+
+        "💰 *Min bet = 15% of your balance | No max bet!*")
 
 @bot.message_handler(commands=["balance", "bal", "chips"])
 def cmd_balance(message):
@@ -239,39 +282,40 @@ def cmd_terms(message):
 
 @bot.message_handler(commands=["slots", "slot"])
 def cmd_slots(message):
-    import time
     p = check_registered(message)
     if not p:
         return
+
     args = message.text.split()
     if len(args) < 2:
-        bot.reply_to(message, f"🎰 Usage: `/slots [bet]`\nExample: `/slots 1000`")
+        bot.reply_to(message, f"Usage: `/slots [bet]`\nExample: `/slots 1000`\nMin: {fmt(Config.MIN_BET)} | Max: {fmt(Config.MAX_BET)}")
         return
+
     try:
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount.")
         return
+
     if bet < Config.MIN_BET or bet > Config.MAX_BET:
-        bot.reply_to(message, f"❌ Bet must be *{fmt(Config.MIN_BET)}* — *{fmt(Config.MAX_BET)}*.")
+        bot.reply_to(message, f"❌ Bet must be between *{fmt(Config.MIN_BET)}* and *{fmt(Config.MAX_BET)}*.")
         return
+
     if p["chips"] < bet:
         bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*.")
         return
-    ok, msg = db.can_play_game(message.from_user.id)
-    if not ok:
-        bot.reply_to(message, msg)
-        return
-    db.set_last_game(message.from_user.id)
-    slot_msg = bot.send_dice(message.chat.id, emoji="🎰")
-    value = slot_msg.dice.value
-    time.sleep(3)
-    result_msg, net = slots.resolve(value, bet)
+
+    reels, winnings, net, result = slots.spin(bet)
+    display = slots.format_reels(reels)
+
     db.update_chips(message.from_user.id, net)
     new_bal = db.get_player(message.from_user.id)["chips"]
+
     sign = "+" if net >= 0 else ""
-    bot.reply_to(slot_msg,
-        f"{result_msg}\n"
+    bot.reply_to(message,
+        f"🎰 *Slots*\n\n"
+        f"{display}\n\n"
+        f"{result}\n"
         f"Bet: *{fmt(bet)}* | {sign}*{fmt(net)}* chips\n"
         f"💰 Balance: *{fmt(new_bal)}*")
 
@@ -543,56 +587,77 @@ def cb_bj_action(call):
 
 @bot.message_handler(commands=["dice"])
 def cmd_dice(message):
-    import time
-    if features.check_bot_dice(message):
-        return
     p = check_registered(message)
     if not p:
         return
+
     args = message.text.split()
-    if len(args) < 3:
+    if len(args) < 3 or not message.reply_to_message:
         bot.reply_to(message,
-            "🎲 *Dice Game*\n\n"
-            "Usage: `/dice [type] [bet]`\n\n"
-            "*2x payout:*\n"
-            "`/dice even 1000`\n"
-            "`/dice odd 1000`\n"
-            "`/dice high 1000` — rolls 4,5,6\n"
-            "`/dice low 1000` — rolls 1,2,3\n\n"
-            "*6x payout:*\n"
-            "`/dice 6 1000` — exact number 1-6")
+            "Reply to someone's message and use:\n"
+            "`/dice @username [bet]`\n\n"
+            "Or *reply to a message* and type:\n"
+            "`/dice [bet]`")
         return
-    bet_type = args[1].lower()
-    try:
-        bet = int(args[2].replace(",", ""))
-    except ValueError:
-        bot.reply_to(message, "❌ Invalid bet amount.")
+
+    # Get opponent from reply
+    if message.reply_to_message:
+        opponent_user = message.reply_to_message.from_user
+        try:
+            bet = int(args[1].replace(",", ""))
+        except ValueError:
+            bot.reply_to(message, "❌ Invalid bet.")
+            return
+    else:
+        bot.reply_to(message, "❌ Reply to your opponent's message first.")
         return
+
+    if opponent_user.id == message.from_user.id:
+        bot.reply_to(message, "❌ You can't challenge yourself!")
+        return
+
+    opp = db.get_player(opponent_user.id)
+    if not opp:
+        bot.reply_to(message, f"❌ {name(opponent_user)} hasn't registered yet.")
+        return
+
     if bet < Config.MIN_BET or bet > Config.MAX_BET:
         bot.reply_to(message, f"❌ Bet must be *{fmt(Config.MIN_BET)}* — *{fmt(Config.MAX_BET)}*.")
         return
+
     if p["chips"] < bet:
-        bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*.")
+        bot.reply_to(message, f"❌ You need *{fmt(bet)}* chips. You have *{fmt(p['chips'])}*.")
         return
-    ok, msg = db.can_play_game(message.from_user.id)
-    if not ok:
-        bot.reply_to(message, msg)
+
+    if opp["chips"] < bet:
+        bot.reply_to(message, f"❌ {name(opponent_user)} doesn't have enough chips.")
         return
-    db.set_last_game(message.from_user.id)
-    dice_msg = bot.send_dice(message.chat.id, emoji="🎲")
-    value = dice_msg.dice.value
-    time.sleep(4)
-    result, net = dice.resolve(value, bet_type, bet)
-    if result is None:
-        bot.reply_to(message, "❌ Invalid type. Use: `even` `odd` `high` `low` or `1-6`")
-        return
-    db.update_chips(message.from_user.id, net)
-    new_bal = db.get_player(message.from_user.id)["chips"]
-    sign = "+" if net >= 0 else ""
-    bot.reply_to(dice_msg,
-        f"{result}\n"
-        f"Bet: *{fmt(bet)}* | {sign}*{fmt(net)}* chips\n"
-        f"💰 Balance: *{fmt(new_bal)}*")
+
+    cid = dice.new_challenge(message.chat.id, message.from_user.id, opponent_user.id, bet)
+    db.save_dice(cid, message.chat.id, message.from_user.id, opponent_user.id, bet)
+    db.update_chips(message.from_user.id, -bet)
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("✅ Accept", callback_data=f"dice_accept_{cid}"),
+        types.InlineKeyboardButton("❌ Decline", callback_data=f"dice_decline_{cid}")
+    )
+    bot.reply_to(message,
+        f"🎲 *Dice Duel Challenge!*\n\n"
+        f"🧑 {name(message.from_user)} challenges {name(opponent_user)}\n"
+        f"💰 Bet: *{fmt(bet)}* chips each\n\n"
+        f"{name(opponent_user)}, do you accept?",
+        reply_markup=markup)
+
+    # Auto-expire
+    def expire():
+        time.sleep(Config.DICE_TIMEOUT)
+        ch = db.get_dice(cid)
+        if ch and ch["state"] == "pending":
+            db.update_dice_state(cid, "expired")
+            db.update_chips(message.from_user.id, bet)  # refund
+
+    threading.Thread(target=expire, daemon=True).start()
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("dice_"))
 def cb_dice(call):
@@ -646,30 +711,6 @@ def cb_dice(call):
     bot.edit_message_text(result, call.message.chat.id, call.message.message_id,
                           parse_mode="Markdown")
 
-
-@bot.message_handler(commands=["addcoins", "add"])
-def cmd_addcoins(message):
-    uid = message.from_user.id
-    if uid not in Config.ADMIN_IDS:
-        bot.reply_to(message, "❌ Admin only command.")
-        return
-    args = message.text.split()
-    if len(args) < 3:
-        bot.reply_to(message, "Usage: `/addcoins [user_id] [amount]`")
-        return
-    try:
-        target = int(args[1])
-        amount = int(args[2])
-    except ValueError:
-        bot.reply_to(message, "❌ Invalid user_id or amount.")
-        return
-    p = db.get_player(target)
-    if not p:
-        bot.reply_to(message, "❌ Player not found. They must /start first.")
-        return
-    new_bal = db.update_chips(target, amount)
-    bot.reply_to(message, f"✅ Added *{fmt(amount)}* chips!\n💰 {p['first_name']} now has *{fmt(new_bal)}* chips.")
-
 # ── Run ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -678,28 +719,8 @@ if __name__ == "__main__":
     print("✅ Database ready")
     features.register_features(bot)
     print("✅ Features loaded")
+    activities.register_activities(bot)
+    db.init_activities_db()
+    print("✅ Activities loaded")
     print("🤖 Bot polling...")
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
-
-@bot.message_handler(commands=["addcoins", "add"])
-def cmd_addcoins(message):
-    uid = message.from_user.id
-    if uid not in Config.ADMIN_IDS:
-        bot.reply_to(message, "❌ Admin only command.")
-        return
-    args = message.text.split()
-    if len(args) < 3:
-        bot.reply_to(message, "Usage: `/addcoins [user_id] [amount]`")
-        return
-    try:
-        target = int(args[1])
-        amount = int(args[2])
-    except ValueError:
-        bot.reply_to(message, "❌ Invalid user_id or amount.")
-        return
-    p = db.get_player(target)
-    if not p:
-        bot.reply_to(message, "❌ Player not found. They must /start first.")
-        return
-    new_bal = db.update_chips(target, amount)
-    bot.reply_to(message, f"✅ Added *{fmt(amount)}* chips!\n💰 {p['first_name']} now has *{fmt(new_bal)}* chips.")

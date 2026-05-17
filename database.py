@@ -38,7 +38,6 @@ def init_db():
         ("last_rob",      "TEXT"),
         ("last_interest", "TEXT"),
         ("married_to",    "INTEGER DEFAULT 0"),
-        ("last_game",     "TEXT"),
     ]:
         try:
             c.execute(f"ALTER TABLE players ADD COLUMN {col} {definition}")
@@ -248,5 +247,37 @@ def get_dice(challenge_id):
 def update_dice_state(challenge_id, state):
     conn = get_conn()
     conn.execute("UPDATE dice_challenges SET state=? WHERE challenge_id=?", (state, challenge_id))
+    conn.commit()
+    conn.close()
+
+def init_activities_db():
+    """Call this alongside init_db to create activity tables"""
+    import sqlite3, os
+    DB_PATH = os.environ.get("DB_PATH", "casino.db")
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    c = conn.cursor()
+
+    # Add activity columns to players
+    for col, definition in [
+        ("last_fish", "TEXT"),
+        ("last_mine", "TEXT"),
+        ("last_farm", "TEXT"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE players ADD COLUMN {col} {definition}")
+        except Exception:
+            pass
+
+    # Tools table
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS player_tools (
+            user_id       INTEGER PRIMARY KEY,
+            fishing_tool  TEXT DEFAULT 'wooden_rod',
+            mining_tool   TEXT DEFAULT 'stone_pickaxe',
+            farming_tool  TEXT DEFAULT 'bare_hands',
+            owned_tools   TEXT DEFAULT '["wooden_rod","stone_pickaxe","bare_hands"]'
+        )
+    """)
+
     conn.commit()
     conn.close()
