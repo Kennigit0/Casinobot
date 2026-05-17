@@ -10,4 +10,4 @@ class Config:
     MAX_BET          = 500_000
     BJ_JOIN_TIMEOUT  = 30         # seconds to join blackjack table
     DICE_TIMEOUT     = 60         # seconds to accept dice challenge
-    ADMIN_IDS        = [1173060685]         # add your Telegram user_id here
+    ADMIN_IDS = [1173060685]         # add your Telegram user_id here

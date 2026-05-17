@@ -188,29 +188,16 @@ def cmd_fish(message):
     ok, msg, _ = check_activity_cooldown(message.from_user.id, "last_fish", wait_mins)
     if not ok:
         _bot.reply_to(message,
-            f"🎣 Already fished recently!\n{msg}"); return
-
-    # Catch 10 items immediately
-    rare_chance = tool.get("rare", 0.05)
-    catches = []
-    total   = 0
-    for _ in range(10):
-        item_name, chips = pick_catch(rare_chance, COMMON_FISH, RARE_FISH, EPIC_FISH)
-        catches.append((item_name, chips))
-        total += chips
+            f"🎣 Already fishing!\n{msg}\n\n"
+            f"Equipped: {tool['name']}\n"
+            f"Use /collect when ready!"); return
 
     set_activity_time(message.from_user.id, "last_fish")
-    db.update_chips(message.from_user.id, total)
-    new_bal = db.get_player(message.from_user.id)["chips"]
-
-    lines = [f"🎣 *Fishing Results!* ({tool['name']})\n"]
-    for item_name, chips in catches:
-        lines.append(f"  {item_name} — {fmt(chips)} chips")
-    lines.append(f"\n💰 Total earned: *{fmt(total)}* chips")
-    lines.append(f"Balance: *{fmt(new_bal)}*")
-    lines.append(f"⏰ Fish again in *{wait_mins} minutes*")
-
-    _bot.reply_to(message, "\n".join(lines))
+    _bot.reply_to(message,
+        f"🎣 *Cast your rod!*\n\n"
+        f"Rod: {tool['name']}\n"
+        f"⏰ Come back in *{wait_mins} minutes*\n"
+        f"Then use /collect fish")
 
 def cmd_mine(message):
     p = db.get_player(message.from_user.id)
@@ -224,29 +211,16 @@ def cmd_mine(message):
     ok, msg, _ = check_activity_cooldown(message.from_user.id, "last_mine", wait_mins)
     if not ok:
         _bot.reply_to(message,
-            f"⛏️ Already mined recently!\n{msg}"); return
-
-    # Find 10 ores immediately
-    rare_chance = tool.get("rare", 0.05)
-    finds = []
-    total = 0
-    for _ in range(10):
-        item_name, chips = pick_catch(rare_chance, COMMON_ORES, RARE_ORES, EPIC_ORES)
-        finds.append((item_name, chips))
-        total += chips
+            f"⛏️ Already mining!\n{msg}\n\n"
+            f"Equipped: {tool['name']}\n"
+            f"Use /collect when ready!"); return
 
     set_activity_time(message.from_user.id, "last_mine")
-    db.update_chips(message.from_user.id, total)
-    new_bal = db.get_player(message.from_user.id)["chips"]
-
-    lines = [f"⛏️ *Mining Results!* ({tool['name']})\n"]
-    for item_name, chips in finds:
-        lines.append(f"  {item_name} — {fmt(chips)} chips")
-    lines.append(f"\n💰 Total earned: *{fmt(total)}* chips")
-    lines.append(f"Balance: *{fmt(new_bal)}*")
-    lines.append(f"⏰ Mine again in *{wait_mins} minutes*")
-
-    _bot.reply_to(message, "\n".join(lines))
+    _bot.reply_to(message,
+        f"⛏️ *Started Mining!*\n\n"
+        f"Pickaxe: {tool['name']}\n"
+        f"⏰ Come back in *{wait_mins} minutes*\n"
+        f"Then use /collect mine")
 
 def cmd_farm(message):
     p = db.get_player(message.from_user.id)
@@ -260,31 +234,16 @@ def cmd_farm(message):
     ok, msg, _ = check_activity_cooldown(message.from_user.id, "last_farm", wait_mins)
     if not ok:
         _bot.reply_to(message,
-            f"🌾 Already farmed recently!\n{msg}"); return
-
-    # Harvest 10 crops immediately
-    rare_chance = tool.get("rare", 0.05)
-    bonus       = tool.get("bonus", 0.0)
-    harvests    = []
-    total       = 0
-    for _ in range(10):
-        item_name, base_chips = pick_catch(rare_chance, COMMON_CROPS, RARE_CROPS, EPIC_CROPS)
-        chips = int(base_chips * (1 + bonus))
-        harvests.append((item_name, chips))
-        total += chips
+            f"🌾 Already farming!\n{msg}\n\n"
+            f"Equipped: {tool['name']}\n"
+            f"Use /collect when ready!"); return
 
     set_activity_time(message.from_user.id, "last_farm")
-    db.update_chips(message.from_user.id, total)
-    new_bal = db.get_player(message.from_user.id)["chips"]
-
-    lines = [f"🌾 *Farming Results!* ({tool['name']})\n"]
-    for item_name, chips in harvests:
-        lines.append(f"  {item_name} — {fmt(chips)} chips")
-    lines.append(f"\n💰 Total earned: *{fmt(total)}* chips")
-    lines.append(f"Balance: *{fmt(new_bal)}*")
-    lines.append(f"⏰ Farm again in *{wait_mins} minutes*")
-
-    _bot.reply_to(message, "\n".join(lines))
+    _bot.reply_to(message,
+        f"🌾 *Started Farming!*\n\n"
+        f"Tool: {tool['name']}\n"
+        f"⏰ Come back in *{wait_mins} minutes*\n"
+        f"Then use /collect farm")
 
 def cmd_collect(message):
     p = db.get_player(message.from_user.id)
