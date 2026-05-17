@@ -8,8 +8,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 def get_conn():
     if DATABASE_URL:
-        import psycopg2
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        import pg8000.native
+        conn = pg8000.native.Connection(DATABASE_URL)
         return conn, "pg"
     else:
         import sqlite3
