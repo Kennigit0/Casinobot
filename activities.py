@@ -89,7 +89,7 @@ def check_activity_cooldown(user_id, field, wait_minutes):
     p = db.get_player(user_id)
     if not p:
         return False, "Not registered.", 0
-    last = p.get(field)
+    last = p.get(field) if isinstance(p, dict) else None
     if last:
         last_dt   = datetime.fromisoformat(last)
         next_dt   = last_dt + timedelta(minutes=wait_minutes)
@@ -103,13 +103,8 @@ def check_activity_cooldown(user_id, field, wait_minutes):
     return True, "", wait_minutes
 
 def set_activity_time(user_id, field):
-    import sqlite3, os
-    DB_PATH = os.environ.get("DB_PATH", "casino.db")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.execute(f"UPDATE players SET {field}=? WHERE user_id=?",
-                 (datetime.now().isoformat(), user_id))
-    conn.commit()
-    conn.close()
+    db.execute(f"UPDATE players SET {field}=? WHERE user_id=?",
+               (datetime.now().isoformat()[:19], user_id))
 
 def get_equipped(user_id, tool_type):
     """Returns equipped tool key for this type"""
@@ -126,53 +121,41 @@ def get_equipped(user_id, tool_type):
     return row[f"{tool_type}_tool"] or list({"fishing": ["wooden_rod"], "mining": ["stone_pickaxe"], "farming": ["bare_hands"]}[tool_type])[0]
 
 def get_owned_tools(user_id):
-    import sqlite3, json, os
-    DB_PATH = os.environ.get("DB_PATH", "casino.db")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,)).fetchone()
-    conn.close()
-    if not row:
-        return ["wooden_rod", "stone_pickaxe", "bare_hands"]
-    owned = json.loads(row["owned_tools"]) if row["owned_tools"] else []
+    import json
+    row = db.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
     defaults = ["wooden_rod", "stone_pickaxe", "bare_hands"]
+    if not row:
+        return defaults
+    owned = json.loads(row["owned_tools"]) if row.get("owned_tools") else []
     return list(set(owned + defaults))
 
 def save_tool_purchase(user_id, tool_key, tool_type):
-    import sqlite3, json, os
-    DB_PATH = os.environ.get("DB_PATH", "casino.db")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,)).fetchone()
+    import json
+    row = db.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
     if row:
-        owned = json.loads(row["owned_tools"]) if row["owned_tools"] else []
+        owned = json.loads(row["owned_tools"]) if row.get("owned_tools") else []
         owned.append(tool_key)
-        conn.execute("UPDATE player_tools SET owned_tools=? WHERE user_id=?",
-                     (json.dumps(owned), user_id))
+        db.execute("UPDATE player_tools SET owned_tools=? WHERE user_id=?",
+                   (json.dumps(owned), user_id))
     else:
         owned = ["wooden_rod", "stone_pickaxe", "bare_hands", tool_key]
-        conn.execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
-                       VALUES (?, 'wooden_rod', 'stone_pickaxe', 'bare_hands', ?)""",
-                     (user_id, json.dumps(owned)))
-    conn.commit()
-    conn.close()
+        db.execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
+                      VALUES (?, 'wooden_rod', 'stone_pickaxe', 'bare_hands', ?)
+                      ON CONFLICT (user_id) DO NOTHING""",
+                   (user_id, json.dumps(owned)))
 
 def equip_tool_db(user_id, tool_key, tool_type):
-    import sqlite3, os
-    DB_PATH = os.environ.get("DB_PATH", "casino.db")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    row = conn.execute("SELECT user_id FROM player_tools WHERE user_id=?", (user_id,)).fetchone()
+    row = db.execute("SELECT user_id FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
     if row:
-        conn.execute(f"UPDATE player_tools SET {tool_type}_tool=? WHERE user_id=?", (tool_key, user_id))
+        db.execute(f"UPDATE player_tools SET {tool_type}_tool=? WHERE user_id=?", (tool_key, user_id))
     else:
         defaults = {"fishing": "wooden_rod", "mining": "stone_pickaxe", "farming": "bare_hands"}
         defaults[tool_type] = tool_key
-        conn.execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
-                       VALUES (?, ?, ?, ?, ?)""",
-                     (user_id, defaults["fishing"], defaults["mining"], defaults["farming"],
-                      '["wooden_rod","stone_pickaxe","bare_hands"]'))
-    conn.commit()
-    conn.close()
+        db.execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
+                      VALUES (?, ?, ?, ?, ?)
+                      ON CONFLICT (user_id) DO NOTHING""",
+                   (user_id, defaults["fishing"], defaults["mining"], defaults["farming"],
+                    '["wooden_rod","stone_pickaxe","bare_hands"]'))
 
 # ── Fishing ───────────────────────────────────────────────────────────
 
@@ -286,17 +269,12 @@ def cmd_collect(message):
         _bot.reply_to(message, "❌ Use: `/collect fish`, `/collect mine`, or `/collect farm`"); return
 
     # Check if activity was started
-    import sqlite3, os
-    DB_PATH = os.environ.get("DB_PATH", "casino.db")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute(f"SELECT {field} FROM players WHERE user_id=?", (uid,)).fetchone()
-    conn.close()
+    row = db.execute(f"SELECT {field} FROM players WHERE user_id=?", (uid,), fetch="one")
 
-    if not row or not row[field]:
+    if not row or not row.get(field):
         _bot.reply_to(message, f"❌ You haven't started {activity}ing yet!\nUse /{activity} first."); return
 
-    last_dt   = datetime.fromisoformat(row[field])
+    last_dt   = datetime.fromisoformat(str(row[field])[:19])
     next_dt   = last_dt + timedelta(minutes=tool["wait"])
     remaining = next_dt - datetime.now()
 
@@ -315,11 +293,7 @@ def cmd_collect(message):
     chips = int(base_chips * (1 + bonus))
 
     # Reset activity
-    import sqlite3
-    conn2 = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn2.execute(f"UPDATE players SET {field}=NULL WHERE user_id=?", (uid,))
-    conn2.commit()
-    conn2.close()
+    db.execute(f"UPDATE players SET {field}=NULL WHERE user_id=?", (uid,))
 
     db.update_chips(uid, chips)
     new_bal = db.get_player(uid)["chips"]
