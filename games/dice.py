@@ -1,37 +1,54 @@
-import random
-import uuid
+def resolve(value: int, bet_type: str, bet_amount: int):
+    """value = 1-6 from Telegram dice animation"""
+    is_even = value % 2 == 0
+    is_high  = value >= 4
+    lines = []
 
-DICE_EMOJI = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
+    if bet_type == "even":
+        if is_even:
+            winnings = bet_amount * 2
+            lines.append(f"✅ Even *{value}*! You win *{winnings:,}* chips!")
+        else:
+            winnings = 0
+            lines.append(f"❌ Odd *{value}*! You lose.")
 
-def roll():
-    value = random.randint(1, 6)
-    return value, DICE_EMOJI[value - 1]
+    elif bet_type == "odd":
+        if not is_even:
+            winnings = bet_amount * 2
+            lines.append(f"✅ Odd *{value}*! You win *{winnings:,}* chips!")
+        else:
+            winnings = 0
+            lines.append(f"❌ Even *{value}*! You lose.")
 
-def new_challenge(chat_id, challenger_id, challenged_id, bet):
-    return str(uuid.uuid4())[:8]
+    elif bet_type == "high":
+        if is_high:
+            winnings = bet_amount * 2
+            lines.append(f"✅ High *{value}* (4-6)! You win *{winnings:,}* chips!")
+        else:
+            winnings = 0
+            lines.append(f"❌ Low *{value}*! You lose.")
 
-def resolve_dice(challenger_id, challenger_name, challenged_id, challenged_name, bet):
-    c1_val, c1_emoji = roll()
-    c2_val, c2_emoji = roll()
+    elif bet_type == "low":
+        if not is_high:
+            winnings = bet_amount * 2
+            lines.append(f"✅ Low *{value}* (1-3)! You win *{winnings:,}* chips!")
+        else:
+            winnings = 0
+            lines.append(f"❌ High *{value}*! You lose.")
 
-    lines = [
-        f"🎲 *Dice Duel!*\n",
-        f"🧑 {challenger_name}: {c1_emoji} *{c1_val}*",
-        f"🧑 {challenged_name}: {c2_emoji} *{c2_val}*",
-        "",
-    ]
-
-    if c1_val > c2_val:
-        winner = challenger_id
-        loser  = challenged_id
-        lines.append(f"🏆 {challenger_name} wins *{bet:,}* chips!")
-    elif c2_val > c1_val:
-        winner = challenged_id
-        loser  = challenger_id
-        lines.append(f"🏆 {challenged_name} wins *{bet:,}* chips!")
+    elif bet_type.isdigit():
+        target = int(bet_type)
+        if 1 <= target <= 6:
+            if value == target:
+                winnings = bet_amount * 6
+                lines.append(f"🎯 Exact *{value}*! x6! You win *{winnings:,}* chips!")
+            else:
+                winnings = 0
+                lines.append(f"❌ Got *{value}*, not {target}. You lose.")
+        else:
+            return None, None
     else:
-        winner = None
-        loser  = None
-        lines.append("🤝 It's a tie! Bets returned.")
+        return None, None
 
-    return "\n".join(lines), winner, loser
+    net = winnings - bet_amount
+    return "\n".join(lines), net

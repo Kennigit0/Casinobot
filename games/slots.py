@@ -1,39 +1,20 @@
-import random
+# Slots using Telegram built-in 🎰 animation
+# value 1-64 returned by Telegram
 
-SYMBOLS  = ["🍒", "🍋", "🍊", "🍇", "💎", "7️⃣", "🃏"]
-WEIGHTS  = [30,   25,   20,   15,   5,    3,    2  ]
-
-# Multipliers for 3 of a kind
-THREE_PAYOUTS = {
-    "🃏": 50,
-    "7️⃣": 30,
-    "💎": 20,
-    "🍇": 10,
-    "🍊": 7,
-    "🍋": 5,
-    "🍒": 3,
+PAYOUTS = {
+    64: (50, "🎰🎰🎰 MEGA JACKPOT! x50!"),
+    43: (20, "💎💎💎 Jackpot! x20!"),
+    22: (10, "7️⃣7️⃣7️⃣ Big Win! x10!"),
+    1:  (5,  "🍒🍒🍒 Win! x5!"),
 }
 
-def spin(bet: int):
-    reels = random.choices(SYMBOLS, weights=WEIGHTS, k=3)
-
-    if reels[0] == reels[1] == reels[2]:
-        symbol    = reels[0]
-        multi     = THREE_PAYOUTS[symbol]
-        winnings  = bet * multi
-        result    = f"🎊 JACKPOT! Three {symbol}! x{multi}"
-    elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
-        multi     = 1.5
-        winnings  = int(bet * multi)
-        result    = "✨ Two of a kind! x1.5"
+def resolve(value: int, bet: int):
+    if value in PAYOUTS:
+        multi, label = PAYOUTS[value]
+        winnings = bet * multi
+        net      = winnings - bet
+        msg      = f"🎊 *{label}*\nYou win *{winnings:,}* chips!"
     else:
-        multi     = 0
-        winnings  = 0
-        result    = "😞 No match. Better luck next time!"
-
-    net = winnings - bet  # positive = profit, negative = loss
-    return reels, winnings, net, result
-
-
-def format_reels(reels):
-    return f"[ {reels[0]} | {reels[1]} | {reels[2]} ]"
+        net = -bet
+        msg = "😞 No match! Better luck next time."
+    return msg, net
