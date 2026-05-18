@@ -108,18 +108,11 @@ def set_activity_time(user_id, field):
 
 def get_equipped(user_id, tool_type):
     """Returns equipped tool key for this type"""
-    import sqlite3, json, os
-    DB_PATH = os.environ.get("DB_PATH", "casino.db")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,)).fetchone()
-    conn.close()
+    row = db.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
+    defaults = {"fishing": "wooden_rod", "mining": "stone_pickaxe", "farming": "bare_hands"}
     if not row:
-        # Default tools
-        defaults = {"fishing": "wooden_rod", "mining": "stone_pickaxe", "farming": "bare_hands"}
         return defaults.get(tool_type, "wooden_rod")
-    return row[f"{tool_type}_tool"] or list({"fishing": ["wooden_rod"], "mining": ["stone_pickaxe"], "farming": ["bare_hands"]}[tool_type])[0]
-
+    return row.get(f"{tool_type}_tool") or defaults.get(tool_type, "wooden_rod")
 def get_owned_tools(user_id):
     import json
     row = db.execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
