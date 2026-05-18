@@ -216,6 +216,20 @@ def init_db():
             except Exception:
                 pass
 
+    # Create player_tools table
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS player_tools (
+                user_id      BIGINT PRIMARY KEY,
+                fishing_tool TEXT DEFAULT 'wooden_rod',
+                mining_tool  TEXT DEFAULT 'stone_pickaxe',
+                farming_tool TEXT DEFAULT 'bare_hands',
+                owned_tools  TEXT DEFAULT '[\"wooden_rod\",\"stone_pickaxe\",\"bare_hands\"]'
+            )
+        """)
+    except Exception as e:
+        print(f"player_tools: {e}")
+
     conn.commit()
     conn.close()
     print(f"✅ DB ready ({'PostgreSQL' if db_type == 'pg' else 'SQLite'})")
