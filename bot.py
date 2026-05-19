@@ -561,9 +561,24 @@ def cb_bj_action(call):
     send_bj_board(gid, call.message.chat.id, call.message.message_id, game)
 
 # ── Run ───────────────────────────────────────────────────────────────
+def keep_db_alive():
+    """Ping database every 4 minutes to prevent Supabase pause"""
+    import threading
+    def ping():
+        while True:
+            try:
+                db.execute("SELECT 1", fetch="one")
+            except Exception as e:
+                print(f"DB ping error: {e}")
+            time.sleep(240)  # 4 minutes
+    t = threading.Thread(target=ping, daemon=True)
+    t.start()
+    print("✅ DB keep-alive started")
+
 if __name__ == "__main__":
     print("🎰 Casino Bot V5 starting...")
     db.init_db()
+    keep_db_alive()
     print("✅ Database ready")
     features.register_features(bot)
     print("✅ Features loaded")
