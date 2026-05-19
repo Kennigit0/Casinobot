@@ -1,11 +1,34 @@
-import os
-import json
+import os, json, math
 from datetime import datetime, date, timedelta
-
-# ── Connection ────────────────────────────────────────────────────────
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# ── Level helpers ─────────────────────────────────────────────────────
+def xp_to_level(xp):
+    return int(math.sqrt((xp or 0) / 100))
+
+def level_to_xp(level):
+    return level * level * 100
+
+def get_title(level):
+    from config import Config
+    title = "🥉 Beginner"
+    for lvl, t in sorted(Config.TITLES.items()):
+        if level >= lvl:
+            title = t
+    return title
+
+def progress_bar(current_xp):
+    level    = xp_to_level(current_xp)
+    curr_xp  = level_to_xp(level)
+    next_xp  = level_to_xp(level + 1)
+    progress = current_xp - curr_xp
+    needed   = next_xp - curr_xp
+    filled   = int(10 * progress / needed) if needed > 0 else 10
+    bar      = "█" * filled + "░" * (10 - filled)
+    return f"[{bar}] {progress}/{needed} XP"
+
+# ── Connection ────────────────────────────────────────────────────────
 def get_conn():
     if DATABASE_URL:
         import psycopg2
@@ -18,9 +41,7 @@ def get_conn():
         return conn, "sqlite"
 
 def execute(query, params=(), fetch=None):
-    """Universal query executor for both SQLite and PostgreSQL"""
     conn, db_type = get_conn()
-    # Convert SQLite ? placeholders to PostgreSQL %s
     if db_type == "pg":
         query = query.replace("?", "%s")
     try:
@@ -30,48 +51,28 @@ def execute(query, params=(), fetch=None):
         if fetch == "one":
             row = cur.fetchone()
             if row and db_type == "pg":
-                cols = [desc[0] for desc in cur.description]
+                cols = [d[0] for d in cur.description]
                 return dict(zip(cols, row))
-            return row
+            return dict(row) if row and db_type == "sqlite" else row
         elif fetch == "all":
             rows = cur.fetchall()
             if rows and db_type == "pg":
-                cols = [desc[0] for desc in cur.description]
+                cols = [d[0] for d in cur.description]
                 return [dict(zip(cols, r)) for r in rows]
-            return rows
+            return [dict(r) for r in rows] if rows and db_type == "sqlite" else rows
         return None
     except Exception as e:
-        conn.rollback()
-        print(f"DB Error: {e}")
+        try: conn.rollback()
+        except: pass
+        print(f"DB Error: {e} | Query: {query[:80]}")
         return None
-    finally:
-        conn.close()
-
-def executemany_safe(queries):
-    """Run multiple queries safely"""
-    conn, db_type = get_conn()
-    try:
-        cur = conn.cursor()
-        for q, p in queries:
-            if db_type == "pg":
-                q = q.replace("?", "%s")
-            try:
-                cur.execute(q, p)
-            except Exception as e:
-                print(f"Query error (ignored): {e}")
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        print(f"DB Error: {e}")
     finally:
         conn.close()
 
 # ── Init ──────────────────────────────────────────────────────────────
-
 def init_db():
     conn, db_type = get_conn()
     cur = conn.cursor()
-
     if db_type == "pg":
         cur.execute("""
             CREATE TABLE IF NOT EXISTS players (
@@ -80,6 +81,8 @@ def init_db():
                 first_name    TEXT,
                 chips         BIGINT DEFAULT 10000,
                 bank          BIGINT DEFAULT 0,
+                xp            BIGINT DEFAULT 0,
+                level         INTEGER DEFAULT 0,
                 vip           INTEGER DEFAULT 0,
                 age_ok        INTEGER DEFAULT 0,
                 last_daily    TEXT,
@@ -128,156 +131,104 @@ def init_db():
                 owned_tools  TEXT DEFAULT '["wooden_rod","stone_pickaxe","bare_hands"]'
             )
         """)
-        # Add missing columns safely
-        for col, definition in [
-            ("bank",          "BIGINT DEFAULT 0"),
-            ("last_work",     "TEXT"),
-            ("last_crime",    "TEXT"),
-            ("last_rob",      "TEXT"),
-            ("last_interest", "TEXT"),
-            ("last_game",     "TEXT"),
-            ("last_heist",    "TEXT"),
-            ("last_fish",     "TEXT"),
-            ("last_mine",     "TEXT"),
-            ("last_farm",     "TEXT"),
-            ("married_to",    "BIGINT DEFAULT 0"),
+        # Safe migrations
+        for col, defn in [
+            ("xp","BIGINT DEFAULT 0"), ("level","INTEGER DEFAULT 0"),
+            ("bank","BIGINT DEFAULT 0"), ("last_work","TEXT"),
+            ("last_crime","TEXT"), ("last_rob","TEXT"),
+            ("last_interest","TEXT"), ("last_game","TEXT"),
+            ("last_heist","TEXT"), ("last_fish","TEXT"),
+            ("last_mine","TEXT"), ("last_farm","TEXT"),
+            ("married_to","BIGINT DEFAULT 0"),
         ]:
-            try:
-                cur.execute(f"ALTER TABLE players ADD COLUMN IF NOT EXISTS {col} {definition}")
-            except Exception:
-                pass
+            try: cur.execute(f"ALTER TABLE players ADD COLUMN IF NOT EXISTS {col} {defn}")
+            except: pass
     else:
-        import sqlite3
         cur.execute("""
             CREATE TABLE IF NOT EXISTS players (
-                user_id       INTEGER PRIMARY KEY,
-                username      TEXT,
-                first_name    TEXT,
-                chips         INTEGER DEFAULT 10000,
-                bank          INTEGER DEFAULT 0,
-                vip           INTEGER DEFAULT 0,
-                age_ok        INTEGER DEFAULT 0,
-                last_daily    TEXT,
-                last_work     TEXT,
-                last_crime    TEXT,
-                last_rob      TEXT,
-                last_interest TEXT,
-                last_game     TEXT,
-                last_heist    TEXT,
-                last_fish     TEXT,
-                last_mine     TEXT,
-                last_farm     TEXT,
-                married_to    INTEGER DEFAULT 0,
-                joined_at     TEXT DEFAULT CURRENT_TIMESTAMP
+                user_id INTEGER PRIMARY KEY, username TEXT, first_name TEXT,
+                chips INTEGER DEFAULT 10000, bank INTEGER DEFAULT 0,
+                xp INTEGER DEFAULT 0, level INTEGER DEFAULT 0,
+                vip INTEGER DEFAULT 0, age_ok INTEGER DEFAULT 0,
+                last_daily TEXT, last_work TEXT, last_crime TEXT,
+                last_rob TEXT, last_interest TEXT, last_game TEXT,
+                last_heist TEXT, last_fish TEXT, last_mine TEXT,
+                last_farm TEXT, married_to INTEGER DEFAULT 0,
+                joined_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS bj_games (
-                game_id    TEXT PRIMARY KEY,
-                chat_id    INTEGER,
-                message_id INTEGER,
-                host_id    INTEGER,
-                state      TEXT DEFAULT 'waiting',
-                bet        INTEGER,
-                data       TEXT DEFAULT '{}',
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS dice_challenges (
-                challenge_id TEXT PRIMARY KEY,
-                chat_id      INTEGER,
-                challenger   INTEGER,
-                challenged   INTEGER,
-                bet          INTEGER,
-                state        TEXT DEFAULT 'pending',
-                created_at   TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS player_tools (
-                user_id      INTEGER PRIMARY KEY,
-                fishing_tool TEXT DEFAULT 'wooden_rod',
-                mining_tool  TEXT DEFAULT 'stone_pickaxe',
-                farming_tool TEXT DEFAULT 'bare_hands',
-                owned_tools  TEXT DEFAULT '["wooden_rod","stone_pickaxe","bare_hands"]'
-            )
-        """)
-        for col, definition in [
-            ("bank", "INTEGER DEFAULT 0"), ("last_work", "TEXT"),
-            ("last_crime", "TEXT"), ("last_rob", "TEXT"),
-            ("last_interest", "TEXT"), ("last_game", "TEXT"),
-            ("last_heist", "TEXT"), ("last_fish", "TEXT"),
-            ("last_mine", "TEXT"), ("last_farm", "TEXT"),
-            ("married_to", "INTEGER DEFAULT 0"),
-        ]:
-            try:
-                cur.execute(f"ALTER TABLE players ADD COLUMN {col} {definition}")
-            except Exception:
-                pass
-
-    # Create player_tools table
-    try:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS player_tools (
-                user_id      BIGINT PRIMARY KEY,
-                fishing_tool TEXT DEFAULT 'wooden_rod',
-                mining_tool  TEXT DEFAULT 'stone_pickaxe',
-                farming_tool TEXT DEFAULT 'bare_hands',
-                owned_tools  TEXT DEFAULT '[\"wooden_rod\",\"stone_pickaxe\",\"bare_hands\"]'
-            )
-        """)
-    except Exception as e:
-        print(f"player_tools: {e}")
-
+        cur.execute("""CREATE TABLE IF NOT EXISTS bj_games (
+            game_id TEXT PRIMARY KEY, chat_id INTEGER, message_id INTEGER,
+            host_id INTEGER, state TEXT DEFAULT 'waiting', bet INTEGER,
+            data TEXT DEFAULT '{}', created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS dice_challenges (
+            challenge_id TEXT PRIMARY KEY, chat_id INTEGER, challenger INTEGER,
+            challenged INTEGER, bet INTEGER, state TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS player_tools (
+            user_id INTEGER PRIMARY KEY,
+            fishing_tool TEXT DEFAULT 'wooden_rod',
+            mining_tool TEXT DEFAULT 'stone_pickaxe',
+            farming_tool TEXT DEFAULT 'bare_hands',
+            owned_tools TEXT DEFAULT '["wooden_rod","stone_pickaxe","bare_hands"]')""")
+        for col, defn in [("xp","INTEGER DEFAULT 0"),("level","INTEGER DEFAULT 0"),
+            ("bank","INTEGER DEFAULT 0"),("last_work","TEXT"),("last_crime","TEXT"),
+            ("last_rob","TEXT"),("last_interest","TEXT"),("last_game","TEXT"),
+            ("last_heist","TEXT"),("last_fish","TEXT"),("last_mine","TEXT"),
+            ("last_farm","TEXT"),("married_to","INTEGER DEFAULT 0")]:
+            try: cur.execute(f"ALTER TABLE players ADD COLUMN {col} {defn}")
+            except: pass
     conn.commit()
     conn.close()
     print(f"✅ DB ready ({'PostgreSQL' if db_type == 'pg' else 'SQLite'})")
 
-def init_activities_db():
-    pass  # Already handled in init_db
+def init_activities_db(): pass
+
+# ── XP & Level ────────────────────────────────────────────────────────
+def add_xp(user_id, amount):
+    p = get_player(user_id)
+    if not p: return
+    new_xp    = (p.get("xp") or 0) + amount
+    new_level = xp_to_level(new_xp)
+    execute("UPDATE players SET xp=?, level=? WHERE user_id=?", (new_xp, new_level, user_id))
+    return new_level, new_xp
 
 # ── Players ───────────────────────────────────────────────────────────
-
 def get_player(user_id):
     return execute("SELECT * FROM players WHERE user_id=?", (user_id,), fetch="one")
 
 def register_player(user_id, username, first_name):
     from config import Config
-    execute("""
-        INSERT INTO players (user_id, username, first_name, chips, age_ok)
-        VALUES (?, ?, ?, ?, 1)
-        ON CONFLICT (user_id) DO NOTHING
-    """, (user_id, username or "unknown", first_name or "Player", Config.STARTING_CHIPS))
+    execute("""INSERT INTO players (user_id, username, first_name, chips, age_ok)
+               VALUES (?, ?, ?, ?, 1) ON CONFLICT (user_id) DO NOTHING""",
+            (user_id, username or "unknown", first_name or "Player", Config.STARTING_CHIPS))
 
 def update_chips(user_id, amount):
-    execute("UPDATE players SET chips = chips + ? WHERE user_id=?", (amount, user_id))
+    execute("UPDATE players SET chips=chips+? WHERE user_id=?", (amount, user_id))
     p = get_player(user_id)
     return p["chips"] if p else 0
 
 def claim_daily(user_id, is_vip=False):
     from config import Config
-    player = get_player(user_id)
-    if not player:
-        return False, 0, "Not registered."
+    p = get_player(user_id)
+    if not p: return False, 0, "Not registered."
     today = str(date.today())
-    if player.get("last_daily") == today:
+    if p.get("last_daily") == today:
         return False, 0, "Already claimed today. Come back tomorrow!"
     bonus = Config.VIP_DAILY_BONUS if is_vip else Config.DAILY_BONUS
-    execute("UPDATE players SET last_daily=?, chips=chips+? WHERE user_id=?",
-            (today, bonus, user_id))
+    execute("UPDATE players SET last_daily=?, chips=chips+? WHERE user_id=?", (today, bonus, user_id))
+    add_xp(user_id, Config.XP_DAILY)
     return True, bonus, ""
 
 def set_vip(user_id, status=1):
     execute("UPDATE players SET vip=? WHERE user_id=?", (status, user_id))
 
-def get_leaderboard(limit=10):
-    return execute(
-        "SELECT user_id, first_name, username, chips, bank, vip FROM players ORDER BY (chips+bank) DESC LIMIT ?",
-        (limit,), fetch="all") or []
+def get_leaderboard(limit=10, by="chips"):
+    if by == "xp":
+        return execute("SELECT user_id, first_name, username, chips, bank, xp, level, vip FROM players ORDER BY xp DESC LIMIT ?", (limit,), fetch="all") or []
+    return execute("SELECT user_id, first_name, username, chips, bank, xp, level, vip FROM players ORDER BY (chips+bank) DESC LIMIT ?", (limit,), fetch="all") or []
 
 # ── Bank ──────────────────────────────────────────────────────────────
-
 def bank_deposit(user_id, amount):
     execute("UPDATE players SET chips=chips-?, bank=bank+? WHERE user_id=?", (amount, amount, user_id))
 
@@ -286,24 +237,20 @@ def bank_withdraw(user_id, amount):
 
 def claim_interest(user_id):
     p = get_player(user_id)
-    if not p:
-        return False, 0, "Not registered."
+    if not p: return False, 0, "Not registered."
     if not p.get("bank") or p["bank"] <= 0:
         return False, 0, "No chips in bank! Deposit first with /deposit"
     today = str(date.today())
     if p.get("last_interest") == today:
         return False, 0, "Already claimed interest today. Come back tomorrow!"
     interest = max(1, int(p["bank"] * 0.03))
-    execute("UPDATE players SET bank=bank+?, last_interest=? WHERE user_id=?",
-            (interest, today, user_id))
+    execute("UPDATE players SET bank=bank+?, last_interest=? WHERE user_id=?", (interest, today, user_id))
     return True, interest, ""
 
 # ── Cooldowns ─────────────────────────────────────────────────────────
-
 def _check_cooldown(user_id, field, hours):
     p = get_player(user_id)
-    if not p:
-        return False, "Not registered."
+    if not p: return False, "Not registered."
     last = p.get(field)
     if last:
         last_dt   = datetime.fromisoformat(str(last)[:19])
@@ -313,53 +260,47 @@ def _check_cooldown(user_id, field, hours):
             mins = int(remaining.total_seconds() // 60)
             hrs  = mins // 60
             mins = mins % 60
-            if hrs > 0:
-                return False, f"Wait *{hrs}h {mins}m* before doing this again."
-            return False, f"Wait *{mins}m* before doing this again."
+            secs = int(remaining.total_seconds() % 60)
+            if hrs > 0:   return False, f"Wait *{hrs}h {mins}m* before doing this again."
+            if mins > 0:  return False, f"Wait *{mins}m {secs}s* before doing this again."
+            return False, f"Wait *{secs}s* before doing this again."
     return True, ""
 
-def can_work(user_id):    return _check_cooldown(user_id, "last_work",   0.05)
-def can_crime(user_id):   return _check_cooldown(user_id, "last_crime",  0.25)
-def can_rob(user_id):     return _check_cooldown(user_id, "last_rob",    2)
-def can_heist(user_id):   return _check_cooldown(user_id, "last_heist",  0.5)
-def can_play_game(user_id): return _check_cooldown(user_id, "last_game", 0.0083)
+def can_play_game(user_id): return _check_cooldown(user_id, "last_game",   0.0083)
+def can_work(user_id):      return _check_cooldown(user_id, "last_work",   0.05)
+def can_crime(user_id):     return _check_cooldown(user_id, "last_crime",  0.25)
+def can_rob(user_id):       return _check_cooldown(user_id, "last_rob",    2)
+def can_heist(user_id):     return _check_cooldown(user_id, "last_heist",  0.5)
 
 def _set_ts(user_id, field):
-    execute(f"UPDATE players SET {field}=? WHERE user_id=?",
-            (datetime.now().isoformat()[:19], user_id))
+    execute(f"UPDATE players SET {field}=? WHERE user_id=?", (datetime.now().isoformat()[:19], user_id))
 
-def set_last_work(user_id):   _set_ts(user_id, "last_work")
-def set_last_crime(user_id):  _set_ts(user_id, "last_crime")
-def set_last_rob(user_id):    _set_ts(user_id, "last_rob")
-def set_last_heist(user_id):  _set_ts(user_id, "last_heist")
-def set_last_game(user_id):   _set_ts(user_id, "last_game")
+def set_last_game(user_id):  _set_ts(user_id, "last_game")
+def set_last_work(user_id):  _set_ts(user_id, "last_work")
+def set_last_crime(user_id): _set_ts(user_id, "last_crime")
+def set_last_rob(user_id):   _set_ts(user_id, "last_rob")
+def set_last_heist(user_id): _set_ts(user_id, "last_heist")
 
 # ── Marriage ──────────────────────────────────────────────────────────
+def marry(u1, u2):
+    execute("UPDATE players SET married_to=? WHERE user_id=?", (u2, u1))
+    execute("UPDATE players SET married_to=? WHERE user_id=?", (u1, u2))
 
-def marry(user1, user2):
-    execute("UPDATE players SET married_to=? WHERE user_id=?", (user2, user1))
-    execute("UPDATE players SET married_to=? WHERE user_id=?", (user1, user2))
-
-def divorce(user1, user2):
-    execute("UPDATE players SET married_to=0 WHERE user_id=?", (user1,))
-    execute("UPDATE players SET married_to=0 WHERE user_id=?", (user2,))
+def divorce(u1, u2):
+    execute("UPDATE players SET married_to=0 WHERE user_id=?", (u1,))
+    execute("UPDATE players SET married_to=0 WHERE user_id=?", (u2,))
 
 # ── Blackjack ─────────────────────────────────────────────────────────
-
 def save_bj_game(game_id, chat_id, message_id, host_id, bet, data):
-    execute("""
-        INSERT INTO bj_games (game_id, chat_id, message_id, host_id, bet, state, data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (game_id) DO UPDATE SET state=EXCLUDED.state, data=EXCLUDED.data
-    """, (game_id, chat_id, message_id, host_id, bet, data.get("state","waiting"), json.dumps(data)))
+    execute("""INSERT INTO bj_games (game_id,chat_id,message_id,host_id,bet,state,data)
+               VALUES (?,?,?,?,?,?,?) ON CONFLICT (game_id) DO UPDATE SET state=EXCLUDED.state, data=EXCLUDED.data""",
+            (game_id, chat_id, message_id, host_id, bet, data.get("state","waiting"), json.dumps(data)))
 
 def get_bj_game(game_id):
     row = execute("SELECT * FROM bj_games WHERE game_id=?", (game_id,), fetch="one")
     if row:
-        if isinstance(row, dict):
-            row["data"] = json.loads(row["data"])
-        return row
-    return None
+        row["data"] = json.loads(row["data"])
+    return row
 
 def update_bj_game(game_id, data):
     execute("UPDATE bj_games SET state=?, data=? WHERE game_id=?",
@@ -369,16 +310,63 @@ def delete_bj_game(game_id):
     execute("DELETE FROM bj_games WHERE game_id=?", (game_id,))
 
 # ── Dice ──────────────────────────────────────────────────────────────
-
 def save_dice(challenge_id, chat_id, challenger, challenged, bet):
-    execute("""
-        INSERT INTO dice_challenges (challenge_id, chat_id, challenger, challenged, bet)
-        VALUES (?, ?, ?, ?, ?)
-    """, (challenge_id, chat_id, challenger, challenged, bet))
+    execute("""INSERT INTO dice_challenges (challenge_id,chat_id,challenger,challenged,bet)
+               VALUES (?,?,?,?,?)""", (challenge_id, chat_id, challenger, challenged, bet))
 
 def get_dice(challenge_id):
-    return execute("SELECT * FROM dice_challenges WHERE challenge_id=?",
-                   (challenge_id,), fetch="one")
+    return execute("SELECT * FROM dice_challenges WHERE challenge_id=?", (challenge_id,), fetch="one")
 
 def update_dice_state(challenge_id, state):
     execute("UPDATE dice_challenges SET state=? WHERE challenge_id=?", (state, challenge_id))
+
+# ── Player Tools ──────────────────────────────────────────────────────
+def get_player_tools(user_id):
+    row = execute("SELECT * FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
+    if not row:
+        return {"fishing_tool": "wooden_rod", "mining_tool": "stone_pickaxe",
+                "farming_tool": "bare_hands",
+                "owned_tools": '["wooden_rod","stone_pickaxe","bare_hands"]'}
+    return row
+
+def get_equipped(user_id, tool_type):
+    row = get_player_tools(user_id)
+    defaults = {"fishing": "wooden_rod", "mining": "stone_pickaxe", "farming": "bare_hands"}
+    key = f"{tool_type}_tool"
+    return (row.get(key) if row else None) or defaults.get(tool_type, "wooden_rod")
+
+def get_owned_tools(user_id):
+    row = get_player_tools(user_id)
+    defaults = ["wooden_rod", "stone_pickaxe", "bare_hands"]
+    owned = json.loads(row["owned_tools"]) if row and row.get("owned_tools") else []
+    return list(set(owned + defaults))
+
+def save_tool_purchase(user_id, tool_key):
+    owned = get_owned_tools(user_id)
+    if tool_key not in owned:
+        owned.append(tool_key)
+    row = execute("SELECT user_id FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
+    if row:
+        execute("UPDATE player_tools SET owned_tools=? WHERE user_id=?", (json.dumps(owned), user_id))
+    else:
+        execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
+                   VALUES (?, 'wooden_rod', 'stone_pickaxe', 'bare_hands', ?)
+                   ON CONFLICT (user_id) DO NOTHING""", (user_id, json.dumps(owned)))
+
+def equip_tool_db(user_id, tool_key, tool_type):
+    row = execute("SELECT user_id FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
+    if row:
+        execute(f"UPDATE player_tools SET {tool_type}_tool=? WHERE user_id=?", (tool_key, user_id))
+    else:
+        defaults = {"fishing": "wooden_rod", "mining": "stone_pickaxe", "farming": "bare_hands"}
+        defaults[tool_type] = tool_key
+        execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
+                   VALUES (?, ?, ?, ?, ?) ON CONFLICT (user_id) DO NOTHING""",
+                (user_id, defaults["fishing"], defaults["mining"], defaults["farming"],
+                 '["wooden_rod","stone_pickaxe","bare_hands"]'))
+
+def set_activity_time(user_id, field):
+    execute(f"UPDATE players SET {field}=? WHERE user_id=?", (datetime.now().isoformat()[:19], user_id))
+
+def clear_activity_time(user_id, field):
+    execute(f"UPDATE players SET {field}=NULL WHERE user_id=?", (user_id,))

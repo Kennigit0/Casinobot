@@ -1,6 +1,3 @@
-# Slots using Telegram built-in 🎰 animation
-# value 1-64 returned by Telegram
-
 PAYOUTS = {
     64: (50, "🎰🎰🎰 MEGA JACKPOT! x50!"),
     43: (20, "💎💎💎 Jackpot! x20!"),
