@@ -29,21 +29,11 @@ def progress_bar(current_xp):
     return f"[{bar}] {progress}/{needed} XP"
 
 # ── Connection ────────────────────────────────────────────────────────
-_pg_conn = None
-
 def get_conn():
-    global _pg_conn
     if DATABASE_URL:
         import psycopg2
-        try:
-            # Reuse existing connection if alive
-            if _pg_conn and not _pg_conn.closed:
-                _pg_conn.cursor().execute("SELECT 1")
-                return _pg_conn, "pg"
-        except:
-            pass
-        _pg_conn = psycopg2.connect(DATABASE_URL, sslmode="require", connect_timeout=10)
-        return _pg_conn, "pg"
+        conn = psycopg2.connect(DATABASE_URL, sslmode="require", connect_timeout=10)
+        return conn, "pg"
     else:
         import sqlite3
         conn = sqlite3.connect("casino.db", check_same_thread=False)
