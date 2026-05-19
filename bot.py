@@ -630,7 +630,4 @@ def cmd_removevip(message):
         return
     db.set_vip(target, 0)
     bot.reply_to(message, f"✅ VIP removed from *{p['first_name']}*.")
-<<<<<<< HEAD
 
-=======
->>>>>>> 0be857d735d573c533fa0aa5e1ce88be4bc032b5
