@@ -6,6 +6,59 @@ from config import Config
 
 _bot = None
 
+
+def cmd_bankupgrade(message):
+    p = db.get_player(message.from_user.id)
+    if not p: _bot.reply_to(message, "❗ /start first"); return
+    lvl  = p.get("bank_level") or 0
+    lines = ["🏦 *Bank Upgrade Tiers*\n"]
+    for l, data in db.BANK_LEVELS.items():
+        arrow = " ◀ *YOU*" if l == lvl else ""
+        cost  = f"{data['upgrade_cost']:,} chips" if data["upgrade_cost"] else "MAX"
+        limit = f"{data['limit']:,}" if data["limit"] < 999_999_999 else "Unlimited"
+        lines.append(f"Lv.{l} *{data['name']}* — Limit: {limit} | Cost: {cost}{arrow}")
+    if lvl < 6:
+        next_cost = db.BANK_LEVELS[lvl]["upgrade_cost"]
+        lines.append(f"\n💡 Cost to upgrade: *{next_cost:,}* chips")
+        lines.append("Type `/bankupgrade confirm` to upgrade")
+    else:
+        lines.append("\n✅ Max level reached!")
+    if "confirm" in message.text.lower():
+        ok, result = db.upgrade_bank(message.from_user.id)
+        if ok:
+            _bot.reply_to(message, f"✅ Upgraded to *{result['name']}*!\n🏦 New limit: *{result['limit']:,}* chips")
+        else:
+            _bot.reply_to(message, result)
+        return
+    _bot.reply_to(message, "\n".join(lines))
+
+def cmd_deposit(message):
+    p = db.get_player(message.from_user.id)
+    if not p: _bot.reply_to(message, "❗ /start first"); return
+    args = message.text.split()
+    if len(args) < 2:
+        limit = db.get_bank_limit(message.from_user.id)
+        _bot.reply_to(message,
+            f"🏦 *Bank Deposit*\nUsage: `/deposit [amount]` or `/deposit all`\n\n"
+            f"💡 Your bank limit: *{limit:,}* chips\nUpgrade with /bankupgrade!")
+        return
+    amt_str = args[1].lower()
+    try:
+        amount = p["chips"] if amt_str == "all" else int(amt_str.replace(",",""))
+    except:
+        _bot.reply_to(message, "❌ Invalid amount."); return
+    if amount <= 0: _bot.reply_to(message, "❌ Amount must be positive."); return
+    if p["chips"] < amount: _bot.reply_to(message, "❌ Not enough chips in wallet!"); return
+    ok, result = db.bank_deposit(message.from_user.id, amount)
+    if ok:
+        new = db.get_player(message.from_user.id)
+        _bot.reply_to(message,
+            f"✅ Deposited *{result:,}* chips!\n"
+            f"🏦 Bank: *{new['bank']:,}* / *{db.get_bank_limit(message.from_user.id):,}*\n"
+            f"👛 Wallet: *{new['chips']:,}*")
+    else:
+        _bot.reply_to(message, result)
+
 def register_features(bot_instance):
     global _bot
     _bot = bot_instance
@@ -22,6 +75,8 @@ def register_features(bot_instance):
         (["marry"],             cmd_marry),
         (["divorce"],           cmd_divorce),
         (["profile", "me"],     cmd_profile),
+        (["bankupgrade","upgradebank"], cmd_bankupgrade),
+        (["deposit"],                  cmd_deposit),
         (["level", "xp"],       cmd_level),
     ]:
         bot_instance.register_message_handler(fn, commands=cmd)
@@ -458,12 +513,24 @@ def cmd_profile(message):
     if p.get("married_to") and p["married_to"] != 0:
         spouse = db.get_player(p["married_to"])
         if spouse: married = f"\n💍 Married to: *{spouse['first_name']}*"
+    wins     = p.get("wins") or 0
+    losses   = p.get("losses") or 0
+    total_g  = wins + losses
+    ratio    = f"{wins/total_g*100:.1f}%" if total_g > 0 else "N/A"
+    bank_lvl = p.get("bank_level") or 0
+    bank_info  = db.BANK_LEVELS[bank_lvl]
+    bank_limit = bank_info["limit"]
+    bank_pct   = f"{bank/bank_limit*100:.1f}%" if bank_limit < 999_999_999 else "MAX"
     _bot.reply_to(message,
         f"👤 *{p['first_name']}'s Profile*\n\n"
         f"🏅 Status: {vip_tag}\n"
         f"⭐ Level: *{level}* — {title}\n"
         f"✨ XP: *{fmt(xp)}*\n"
         f"👛 Wallet: *{fmt(p['chips'])}* chips\n"
-        f"🏦 Bank:   *{fmt(bank)}* chips\n"
-        f"💰 Total:  *{fmt(p['chips'] + bank)}* chips"
+        f"🏦 Bank: *{fmt(bank)}* / *{fmt(bank_limit)}* ({bank_pct})\n"
+        f"🏦 Bank Tier: *{bank_info['name']}* Lv.{bank_lvl}\n"
+        f"💰 Total: *{fmt(p['chips'] + bank)}* chips\n\n"
+        f"🎮 Games Played: *{total_g}*\n"
+        f"✅ Wins: *{wins}*  ❌ Losses: *{losses}*\n"
+        f"📊 Win Rate: *{ratio}*"
         f"{married}")

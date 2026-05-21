@@ -160,7 +160,7 @@ def handle_answer(message):
     bonus  = STREAK_BONUS * (streak - 1) if streak > 1 else 0
     total  = game["reward"] + bonus
 
-    db.update_chips(uid, total)
+    db.update_balance(uid, total)
     db.add_xp(uid, 20)
 
     streak_msg = f"\n🔥 *Streak x{streak}!* +{fmt(bonus)} bonus chips" if streak > 1 else ""

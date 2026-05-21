@@ -140,6 +140,9 @@ def init_db():
             ("last_heist","TEXT"), ("last_fish","TEXT"),
             ("last_mine","TEXT"), ("last_farm","TEXT"),
             ("married_to","BIGINT DEFAULT 0"),
+            ("wins","BIGINT DEFAULT 0"),
+            ("losses","BIGINT DEFAULT 0"),
+            ("bank_level","INTEGER DEFAULT 0"),
         ]:
             try: cur.execute(f"ALTER TABLE players ADD COLUMN IF NOT EXISTS {col} {defn}")
             except: pass
@@ -175,7 +178,10 @@ def init_db():
             ("bank","INTEGER DEFAULT 0"),("last_work","TEXT"),("last_crime","TEXT"),
             ("last_rob","TEXT"),("last_interest","TEXT"),("last_game","TEXT"),
             ("last_heist","TEXT"),("last_fish","TEXT"),("last_mine","TEXT"),
-            ("last_farm","TEXT"),("married_to","INTEGER DEFAULT 0")]:
+            ("last_farm","TEXT"),("married_to","INTEGER DEFAULT 0"),
+            ("wins","INTEGER DEFAULT 0"),
+            ("losses","INTEGER DEFAULT 0"),
+            ("bank_level","INTEGER DEFAULT 0")]:
             try: cur.execute(f"ALTER TABLE players ADD COLUMN {col} {defn}")
             except: pass
     conn.commit()
@@ -229,8 +235,50 @@ def get_leaderboard(limit=10, by="chips"):
     return execute("SELECT user_id, first_name, username, chips, bank, xp, level, vip FROM players ORDER BY (chips+bank) DESC LIMIT ?", (limit,), fetch="all") or []
 
 # ── Bank ──────────────────────────────────────────────────────────────
+
+BANK_LEVELS = {
+    0: {"name": "Basic",    "limit": 50_000,      "upgrade_cost": 10_000},
+    1: {"name": "Bronze",   "limit": 200_000,     "upgrade_cost": 50_000},
+    2: {"name": "Silver",   "limit": 500_000,     "upgrade_cost": 150_000},
+    3: {"name": "Gold",     "limit": 1_000_000,   "upgrade_cost": 400_000},
+    4: {"name": "Platinum", "limit": 5_000_000,   "upgrade_cost": 1_200_000},
+    5: {"name": "Diamond",  "limit": 20_000_000,  "upgrade_cost": 4_000_000},
+    6: {"name": "Elite",    "limit": 999_999_999, "upgrade_cost": None},
+}
+
+def add_win(user_id):
+    execute("UPDATE players SET wins = COALESCE(wins,0) + 1 WHERE user_id=?", (user_id,))
+
+def add_loss(user_id):
+    execute("UPDATE players SET losses = COALESCE(losses,0) + 1 WHERE user_id=?", (user_id,))
+
+def get_bank_limit(user_id):
+    p = get_player(user_id)
+    lvl = (p.get("bank_level") or 0) if p else 0
+    return BANK_LEVELS[lvl]["limit"]
+
+def upgrade_bank(user_id):
+    p = get_player(user_id)
+    if not p: return False, "Player not found."
+    lvl = p.get("bank_level") or 0
+    if lvl >= 6: return False, "🏦 Already at *Elite* — max level!"
+    cost = BANK_LEVELS[lvl]["upgrade_cost"]
+    if p["chips"] < cost:
+        return False, f"❌ Need *{cost:,}* chips in wallet to upgrade."
+    execute("UPDATE players SET chips=chips-?, bank_level=bank_level+1 WHERE user_id=?", (cost, user_id))
+    return True, BANK_LEVELS[lvl + 1]
+
 def bank_deposit(user_id, amount):
+    p = get_player(user_id)
+    limit = get_bank_limit(user_id)
+    current_bank = p.get("bank") or 0
+    if current_bank + amount > limit:
+        space = limit - current_bank
+        if space <= 0:
+            return False, "❌ Bank is full! Use /bankupgrade to store more."
+        return False, f"❌ Only *{space:,}* space left. Deposit that or /bankupgrade."
     execute("UPDATE players SET chips=chips-?, bank=bank+? WHERE user_id=?", (amount, amount, user_id))
+    return True, amount
 
 def bank_withdraw(user_id, amount):
     execute("UPDATE players SET bank=bank-?, chips=chips+? WHERE user_id=?", (amount, amount, user_id))

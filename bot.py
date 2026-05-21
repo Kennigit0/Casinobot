@@ -290,7 +290,7 @@ def cmd_slots(message):
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
-    min_bet = max(1, int(p["chips"] * 0.15))
+    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -306,6 +306,9 @@ def cmd_slots(message):
     db.update_chips(message.from_user.id, net)
     if net > 0:
         db.add_xp(message.from_user.id, Config.XP_GAME_WIN)
+        db.add_win(message.from_user.id)
+    else:
+        db.add_loss(message.from_user.id)
     new_bal = db.get_player(message.from_user.id)["chips"]
     sign    = "+" if net >= 0 else ""
     xp_note = f" +{Config.XP_GAME_WIN} XP" if net > 0 else ""
@@ -335,7 +338,7 @@ def cmd_dice(message):
         bet = int(args[2].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
-    min_bet = max(1, int(p["chips"] * 0.15))
+    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -383,7 +386,7 @@ def cmd_roulette(message):
         bet = int(args[3].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
-    min_bet = max(1, int(p["chips"] * 0.15))
+    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -427,7 +430,7 @@ def cmd_bj(message):
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet."); return
-    min_bet = max(1, int(p["chips"] * 0.15))
+    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -630,6 +633,8 @@ if __name__ == "__main__":
     print("✅ Features loaded")
     activities.register_activities(bot)
     print("✅ Activities loaded")
+    minigames.register_minigames(bot)
+    print("✅ Minigames loaded")
     minigames.register_minigames(bot)
     print("✅ Minigames loaded")
     print("🤖 Bot polling...")
