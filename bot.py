@@ -10,6 +10,7 @@ load_dotenv()
 import database as db
 import features
 import activities
+import minigames
 from config import Config
 from games import slots, dice, roulette, blackjack
 
@@ -629,5 +630,7 @@ if __name__ == "__main__":
     print("✅ Features loaded")
     activities.register_activities(bot)
     print("✅ Activities loaded")
+    minigames.register_minigames(bot)
+    print("✅ Minigames loaded")
     print("🤖 Bot polling...")
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
