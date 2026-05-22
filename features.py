@@ -7,60 +7,6 @@ from config import Config
 _bot = None
 
 
-def cmd_bankupgrade(message):
-    p = db.get_player(message.from_user.id)
-    if not p: _bot.reply_to(message, "❗ /start first"); return
-    lvl  = p.get("bank_level") or 0
-    lines = ["🏦 *Bank Upgrade Tiers*\n"]
-    for l, data in db.BANK_LEVELS.items():
-        arrow = " ◀ *YOU*" if l == lvl else ""
-        cost  = f"{data['upgrade_cost']:,} chips" if data["upgrade_cost"] else "MAX"
-        limit = f"{data['limit']:,}" if data["limit"] < 999_999_999 else "Unlimited"
-        lines.append(f"Lv.{l} *{data['name']}* — Limit: {limit} | Cost: {cost}{arrow}")
-    if lvl < 6:
-        next_cost = db.BANK_LEVELS[lvl]["upgrade_cost"]
-        lines.append(f"\n💡 Cost to upgrade: *{next_cost:,}* chips")
-        lines.append("Type `/bankupgrade confirm` to upgrade")
-    else:
-        lines.append("\n✅ Max level reached!")
-    if "confirm" in message.text.lower():
-        ok, result = db.upgrade_bank(message.from_user.id)
-        if ok:
-            _bot.reply_to(message, f"✅ Upgraded to *{result['name']}*!\n🏦 New limit: *{result['limit']:,}* chips")
-        else:
-            _bot.reply_to(message, result)
-        return
-    _bot.reply_to(message, "\n".join(lines))
-
-def cmd_deposit(message):
-    p = db.get_player(message.from_user.id)
-    if not p: _bot.reply_to(message, "❗ /start first"); return
-    args = message.text.split()
-    if len(args) < 2:
-        limit = db.get_bank_limit(message.from_user.id)
-        _bot.reply_to(message,
-            f"🏦 *Bank Deposit*\nUsage: `/deposit [amount]` or `/deposit all`\n\n"
-            f"💡 Your bank limit: *{limit:,}* chips\nUpgrade with /bankupgrade!")
-        return
-    amt_str = args[1].lower()
-    try:
-        amount = p["chips"] if amt_str == "all" else int(amt_str.replace(",",""))
-    except:
-        _bot.reply_to(message, "❌ Invalid amount."); return
-    if amount <= 0: _bot.reply_to(message, "❌ Amount must be positive."); return
-    if p["chips"] < amount: _bot.reply_to(message, "❌ Not enough chips in wallet!"); return
-    ok, result = db.bank_deposit(message.from_user.id, amount)
-    if ok:
-        new = db.get_player(message.from_user.id)
-        _bot.reply_to(message,
-            f"✅ Deposited *{result:,}* chips!\n"
-            f"🏦 Bank: *{new['bank']:,}* / *{db.get_bank_limit(message.from_user.id):,}*\n"
-            f"👛 Wallet: *{new['chips']:,}*")
-    else:
-        _bot.reply_to(message, result)
-
-
-from telebot import types as _types
 
 def _btn(text, data): return _types.InlineKeyboardButton(text, callback_data=data)
 def _markup(*rows):
@@ -69,26 +15,7 @@ def _markup(*rows):
     return m
 
 # ── /bank ──────────────────────────────────────────────────────────────
-def cmd_bank(message):
-    p = db.get_player(message.from_user.id)
-    if not p: _bot.reply_to(message, "❗ /start first"); return
-    bank     = p.get("bank") or 0
-    lvl      = p.get("bank_level") or 0
-    info     = db.BANK_LEVELS[lvl]
-    limit    = info["limit"]
-    pct      = f"{bank/limit*100:.1f}%" if limit < 999_999_999 else "MAX"
-    markup   = _markup(
-        [_btn("💰 Deposit", "bank_dep"), _btn("💸 Withdraw", "bank_with")],
-        [_btn("📈 Interest", "bank_int"), _btn("⬆️ Upgrade", "bank_upg")],
-    )
-    _bot.reply_to(message,
-        f"🏦 *Your Bank*\n\n"
-        f"👛 Wallet: *{fmt(p['chips'])}*\n"
-        f"🏦 Bank:   *{fmt(bank)}* / *{fmt(limit)}* ({pct})\n"
-        f"🏅 Tier: *{info['name']}* (Lv.{lvl})\n\n"
-        f"💡 Deposit to earn 3% daily interest!", reply_markup=markup)
 
-# ── /bankupgrade ───────────────────────────────────────────────────────
 def cmd_bankupgrade(message):
     _show_bankupgrade(message.from_user.id, message)
 
@@ -111,61 +38,8 @@ def _show_bankupgrade(uid, message):
     _bot.reply_to(message, "\n".join(lines), reply_markup=markup)
 
 # ── /interest ──────────────────────────────────────────────────────────
-def cmd_interest(message):
-    p = db.get_player(message.from_user.id)
-    if not p: _bot.reply_to(message, "❗ /start first"); return
-    markup = _markup([_btn("📈 Claim 3% Interest", "bank_int")])
-    bank   = p.get("bank") or 0
-    est    = int(bank * 0.03)
-    _bot.reply_to(message,
-        f"📈 *Daily Interest*\n\n"
-        f"🏦 Bank balance: *{fmt(bank)}*\n"
-        f"💰 Est. interest: *{fmt(est)}* chips (3%)\n\n"
-        f"Claim once per day!", reply_markup=markup)
 
-# ── /profile ───────────────────────────────────────────────────────────
-def cmd_profile(message):
-    if message.reply_to_message and not message.reply_to_message.from_user.is_bot:
-        uid = message.reply_to_message.from_user.id
-    else:
-        uid = message.from_user.id
-    p = db.get_player(uid)
-    if not p: _bot.reply_to(message, "❌ Player not registered."); return
-    vip_tag  = "👑 VIP" if p["vip"] else "👤 Regular"
-    bank     = p.get("bank") or 0
-    xp       = p.get("xp") or 0
-    level    = db.xp_to_level(xp)
-    title    = db.get_title(level)
-    wins     = p.get("wins") or 0
-    losses   = p.get("losses") or 0
-    total_g  = wins + losses
-    ratio    = f"{wins/total_g*100:.1f}%" if total_g > 0 else "N/A"
-    bank_lvl = p.get("bank_level") or 0
-    info     = db.BANK_LEVELS[bank_lvl]
-    limit    = info["limit"]
-    pct      = f"{bank/limit*100:.1f}%" if limit < 999_999_999 else "MAX"
-    married  = ""
-    if p.get("married_to") and p["married_to"] != 0:
-        spouse = db.get_player(p["married_to"])
-        if spouse: married = f"\n💍 Married to: *{spouse['first_name']}*"
-    markup = _markup(
-        [_btn("💰 Deposit", "bank_dep"), _btn("💸 Withdraw", "bank_with")],
-        [_btn("⬆️ Bank Upgrade", "bank_upg"), _btn("📈 Interest", "bank_int")],
-    )
-    _bot.reply_to(message,
-        f"👤 *{p['first_name']}\'s Profile*\n\n"
-        f"🏅 Status: {vip_tag}\n"
-        f"⭐ Level: *{level}* — {title}\n"
-        f"✨ XP: *{fmt(xp)}*\n"
-        f"👛 Wallet: *{fmt(p['chips'])}*\n"
-        f"🏦 Bank: *{fmt(bank)}* / *{fmt(limit)}* ({pct})\n"
-        f"🏦 Tier: *{info['name']}* Lv.{bank_lvl}\n"
-        f"💰 Total: *{fmt(p['chips'] + bank)}*\n\n"
-        f"🎮 Played: *{total_g}* | ✅ *{wins}* | ❌ *{losses}*\n"
-        f"📊 Win Rate: *{ratio}*"
-        f"{married}", reply_markup=markup)
 
-# ── /leaderboard ───────────────────────────────────────────────────────
 def cmd_leaderboard(message):
     args = message.text.split()
     by   = "xp" if len(args) > 1 and args[1].lower() == "xp" else "chips"
@@ -263,10 +137,7 @@ def cmd_deposit(message):
             f"🏦 Bank: *{fmt(new['bank'])}* / *{fmt(db.get_bank_limit(message.from_user.id))}*\n"
             f"👛 Wallet: *{fmt(new['chips'])}*")
     else:
-        markup = _markup([_btn("⬆️ Upgrade Bank", "bank_upg")])
-        _bot.reply_to(message, result, reply_markup=markup)
-
-# ── Callbacks ───────────────────────────────────────────────────────────
+        markup = _markup([_btn("⬆️ Upgrade Bank", "bank_upg")]
 def handle_bank_callbacks(call):
     uid  = call.from_user.id
     data = call.data
@@ -319,12 +190,61 @@ def handle_bank_callbacks(call):
     elif data.startswith("shop_"):
         cat = data.replace("shop_","")
         _bot.answer_callback_query(call.id)
-        _bot.send_message(call.message.chat.id, f"🛒 Use `/shop {cat}` to see items and `/buy [item]` to purchase!")
+        from activities import TOOLS
+        items = TOOLS.get(cat, {})
+        if not items:
+            _bot.send_message(call.message.chat.id, "❌ No items found.")
+        else:
+            p2   = db.get_player(uid)
+            owned = db.get_player_tools(uid).get("owned_tools", [])
+            if isinstance(owned, str):
+                import json; owned = json.loads(owned)
+            lines = [f"🛒 *{cat.title()} Shop*\n"]
+            btns  = []
+            for item_id, info in items.items():
+                have = item_id in owned
+                status = "✅ Owned" if have else f"{info['price']:,} chips"
+                lines.append(f"{'✅' if have else '▫️'} *{info['name']}* — {status}\n_{info.get('desc','')}_ (+{info.get('bonus',0)}% yield)")
+                if not have:
+                    btns.append([_btn(f"Buy {info['name']} — {info['price']:,}", f"buy_{item_id}")])
+                else:
+                    btns.append([_btn(f"Equip {info['name']}", f"equip_{item_id}")])
+            markup2 = _markup(*btns) if btns else None
+            _bot.send_message(call.message.chat.id, "\n".join(lines), reply_markup=markup2, parse_mode="Markdown")
+
+    elif data.startswith("buy_"):
+        item_id = data.replace("buy_","")
+        from activities import TOOLS
+        for cat, items in TOOLS.items():
+            if item_id in items:
+                info  = items[item_id]
+                owned = db.get_player_tools(uid).get("owned_tools", [])
+                if isinstance(owned, str):
+                    import json; owned = json.loads(owned)
+                if item_id in owned:
+                    _bot.answer_callback_query(call.id, "Already owned!", show_alert=True); break
+                p2 = db.get_player(uid)
+                if p2["chips"] < info["price"]:
+                    _bot.answer_callback_query(call.id, f"Need {info['price']:,} chips!", show_alert=True); break
+                db.update_chips(uid, -info["price"])
+                db.add_tool(uid, item_id)
+                _bot.answer_callback_query(call.id, f"✅ Bought {info['name']}!")
+                _bot.send_message(call.message.chat.id,
+                    f"✅ Bought *{info['name']}*!\n"
+                    f"💰 -{info['price']:,} chips\n"
+                    f"Tap Equip to use it!", reply_markup=_markup([_btn(f"Equip {info['name']}", f"equip_{item_id}")]))
+                break
 
     elif data.startswith("equip_"):
-        tool = data.replace("equip_","")
-        _bot.answer_callback_query(call.id)
-        _bot.send_message(call.message.chat.id, f"Use `/equip {tool}` to equip it!")
+        item_id = data.replace("equip_","")
+        from activities import TOOLS
+        for cat, items in TOOLS.items():
+            if item_id in items:
+                db.equip_tool(uid, cat, item_id)
+                info = items[item_id]
+                _bot.answer_callback_query(call.id, f"✅ Equipped {info['name']}!")
+                _bot.send_message(call.message.chat.id, f"✅ *{info['name']}* equipped for {cat}!")
+                break
 
     elif data.startswith("game_"):
         game = data.replace("game_","")
