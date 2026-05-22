@@ -75,8 +75,9 @@ def cmd_shop(message):
     args = message.text.split()
     if len(args) > 1:
         cat = args[1].lower()
-        from activities import TOOLS
-        items = TOOLS.get(cat, {})
+        from config import Config
+        cat_map = {'fishing': Config.FISHING_TOOLS, 'mining': Config.MINING_TOOLS, 'farming': Config.FARMING_TOOLS}
+        items = cat_map.get(cat, {})
         if not items: _bot.reply_to(message, "❌ Invalid category."); return
         p = db.get_player(message.from_user.id)
         owned = db.get_player_tools(message.from_user.id).get("owned_tools", [])
@@ -211,8 +212,9 @@ def handle_bank_callbacks(call):
     elif data.startswith("shop_"):
         cat = data.replace("shop_","")
         _bot.answer_callback_query(call.id)
-        from activities import TOOLS
-        items = TOOLS.get(cat, {})
+        from config import Config
+        cat_map = {'fishing': Config.FISHING_TOOLS, 'mining': Config.MINING_TOOLS, 'farming': Config.FARMING_TOOLS}
+        items = cat_map.get(cat, {})
         if not items:
             _bot.send_message(call.message.chat.id, "❌ No items found.")
         else:
@@ -235,8 +237,9 @@ def handle_bank_callbacks(call):
 
     elif data.startswith("buy_"):
         item_id = data.replace("buy_","")
-        from activities import TOOLS
-        for cat, items in TOOLS.items():
+        from config import Config
+        all_tools = {**Config.FISHING_TOOLS, **Config.MINING_TOOLS, **Config.FARMING_TOOLS}
+        for cat, items in [('fishing', Config.FISHING_TOOLS), ('mining', Config.MINING_TOOLS), ('farming', Config.FARMING_TOOLS)]:
             if item_id in items:
                 info  = items[item_id]
                 owned = db.get_player_tools(uid).get("owned_tools", [])
@@ -258,8 +261,9 @@ def handle_bank_callbacks(call):
 
     elif data.startswith("equip_"):
         item_id = data.replace("equip_","")
-        from activities import TOOLS
-        for cat, items in TOOLS.items():
+        from config import Config
+        all_tools = {**Config.FISHING_TOOLS, **Config.MINING_TOOLS, **Config.FARMING_TOOLS}
+        for cat, items in [('fishing', Config.FISHING_TOOLS), ('mining', Config.MINING_TOOLS), ('farming', Config.FARMING_TOOLS)]:
             if item_id in items:
                 db.equip_tool(uid, cat, item_id)
                 info = items[item_id]
