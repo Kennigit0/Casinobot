@@ -137,7 +137,7 @@ def cmd_deposit(message):
             f"🏦 Bank: *{fmt(new['bank'])}* / *{fmt(db.get_bank_limit(message.from_user.id))}*\n"
             f"👛 Wallet: *{fmt(new['chips'])}*")
     else:
-        markup = _markup([_btn("⬆️ Upgrade Bank", "bank_upg")]
+    markup = _markup([_btn("Upgrade Bank", "bank_upg")])
 def handle_bank_callbacks(call):
     uid  = call.from_user.id
     data = call.data
