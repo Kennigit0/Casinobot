@@ -72,6 +72,25 @@ def cmd_shop(message):
         [_btn("⛏️ Pickaxes",     "shop_mining")],
         [_btn("🌾 Farming Tools", "shop_farming")],
     )
+    args = message.text.split()
+    if len(args) > 1:
+        cat = args[1].lower()
+        from activities import TOOLS
+        items = TOOLS.get(cat, {})
+        if not items: _bot.reply_to(message, "❌ Invalid category."); return
+        p = db.get_player(message.from_user.id)
+        owned = db.get_player_tools(message.from_user.id).get("owned_tools", [])
+        if isinstance(owned, str):
+            import json; owned = json.loads(owned)
+        lines = [f"🛒 *{cat.title()} Shop*\n"]
+        btns = []
+        for item_id, info in items.items():
+            have = item_id in owned
+            status = "✅ Owned" if have else f"{info['price']:,} chips"
+            lines.append(f"{'✅' if have else '▫️'} *{info['name']}* — {status}")
+            btns.append([_btn(f"Equip {info['name']}" if have else f"Buy {info['name']} {info['price']:,}", f"equip_{item_id}" if have else f"buy_{item_id}")])
+        _bot.reply_to(message, "\n".join(lines), reply_markup=_markup(*btns), parse_mode="Markdown")
+        return
     _bot.reply_to(message, "🛒 *Shop — Choose a category:*", reply_markup=markup)
 
 # ── /inventory ─────────────────────────────────────────────────────────
@@ -138,6 +157,8 @@ def cmd_deposit(message):
             f"👛 Wallet: *{fmt(new['chips'])}*")
     else:
         markup = _markup([_btn("Upgrade Bank", "bank_upg")])
+        _bot.reply_to(message, result, reply_markup=markup)
+
 def handle_bank_callbacks(call):
     uid  = call.from_user.id
     data = call.data
