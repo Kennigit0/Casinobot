@@ -8,9 +8,9 @@ _bot = None
 
 
 
-def _btn(text, data): return _types.InlineKeyboardButton(text, callback_data=data)
+def _btn(text, data): return types.InlineKeyboardButton(text, callback_data=data)
 def _markup(*rows):
-    m = _types.InlineKeyboardMarkup()
+    m = types.InlineKeyboardMarkup()
     for row in rows: m.row(*row)
     return m
 
