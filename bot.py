@@ -290,7 +290,10 @@ def cmd_slots(message):
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
-    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
+    min_bet = max(1, int(p["chips"] * 0.15))
+    if bet > p["chips"]:
+        bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
+        return
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -338,7 +341,10 @@ def cmd_dice(message):
         bet = int(args[2].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
-    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
+    min_bet = max(1, int(p["chips"] * 0.15))
+    if bet > p["chips"]:
+        bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
+        return
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -386,7 +392,10 @@ def cmd_roulette(message):
         bet = int(args[3].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
-    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
+    min_bet = max(1, int(p["chips"] * 0.15))
+    if bet > p["chips"]:
+        bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
+        return
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
@@ -430,7 +439,10 @@ def cmd_bj(message):
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet."); return
-    min_bet = max(1, int((p["chips"] + (p.get("bank") or 0)) * 0.15))
+    min_bet = max(1, int(p["chips"] * 0.15))
+    if bet > p["chips"]:
+        bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
+        return
     if bet < min_bet:
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
