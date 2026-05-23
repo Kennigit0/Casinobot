@@ -292,18 +292,29 @@ def cmd_announce(message):
     if len(args) < 2:
         _bot.reply_to(message, "Usage: /announce [your message]"); return
     text = args[1]
-    groups = db.get_all_groups()
     sent = 0
-    for chat_id in groups:
+    failed = 0
+    # Send to all groups
+    for chat_id in db.get_all_groups():
         try:
-            _bot.send_message(chat_id,
-                f"📢 *Announcement*\n\n{text}",
-                parse_mode="Markdown")
+            _bot.send_message(chat_id, f"📢 *Announcement*\n\n{text}", parse_mode="Markdown")
             sent += 1
-        except: pass
-    _bot.reply_to(message, f"✅ Sent to {sent} groups!")
+        except: failed += 1
+    # Send DM to all registered players
+    players = db.execute("SELECT DISTINCT user_id FROM players", fetch=True)
+    for p in players:
+        try:
+            _bot.send_message(p["user_id"], f"📢 *Announcement*\n\n{text}", parse_mode="Markdown")
+            sent += 1
+        except: failed += 1
+    _bot.reply_to(message, f"✅ Sent: {sent}\n❌ Failed: {failed} (players who never DMed bot)")
+
+def _auto_save_group(message):
+    if message.chat.type in ("group", "supergroup"):
+        db.save_group(message.chat.id)
 
 def register_features(bot_instance):
+    bot_instance.register_message_handler(_auto_save_group, func=lambda m: True)
     bot_instance.register_callback_query_handler(
         handle_bank_callbacks,
         func=lambda c: c.data in ['bank_dep','bank_with','bank_int','bank_upg','bank_upg_confirm','lb_chips','lb_xp']

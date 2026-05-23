@@ -71,6 +71,11 @@ def execute(query, params=(), fetch=None):
 
 # ── Init ──────────────────────────────────────────────────────────────
 def init_db():
+    execute('''
+        CREATE TABLE IF NOT EXISTS groups (
+            chat_id BIGINT PRIMARY KEY
+        )
+    ''')
     conn, db_type = get_conn()
     cur = conn.cursor()
     if db_type == "pg":
