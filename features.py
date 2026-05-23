@@ -314,6 +314,18 @@ def _auto_save_group(message):
     if message.chat.type in ("group", "supergroup"):
         db.save_group(message.chat.id)
 
+
+def cmd_group_to_play(message):
+    from telebot import types as _types
+    markup = _types.InlineKeyboardMarkup()
+    markup.add(_types.InlineKeyboardButton("🎰 Join Kenni's Casino", url="https://t.me/kennicasinogc"))
+    _bot.reply_to(message,
+        "🔍 *Looking for a group to play Kenni's Casino?*\n"
+        "_Check out the group below:_\n\n"
+        "🎰 @kennicasinogc • 👥 Active daily\n\n"
+        "Join and start playing! /start to register.",
+        parse_mode="Markdown", reply_markup=markup)
+
 def register_features(bot_instance):
     
     bot_instance.register_callback_query_handler(
@@ -336,6 +348,7 @@ def register_features(bot_instance):
         (["marry"],             cmd_marry),
         (["divorce"],           cmd_divorce),
         (["profile", "me"],     cmd_profile),
+        (["group_to_play","grouptoplay"], cmd_group_to_play),
         (["announce"],            cmd_announce),
         (["games","game"],        cmd_games),
         (["interest"],            cmd_interest),
