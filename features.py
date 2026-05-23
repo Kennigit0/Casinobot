@@ -585,6 +585,48 @@ def cmd_work(message):
         f"{title}\n\nYou *{desc}* and earned *{fmt(earned)}* chips! 💪\n\n"
         f"💰 Balance: *{fmt(new_bal)}*\n+{Config.XP_WORK} XP\n⏰ Work again in 3 minutes")
 
+
+CRIME_WIN_MSGS = [
+    "🎭 Pizza delivery wala ban ke nikla aur poora loot ke aa gaya! Absolute legend!",
+    "🐱 Billi pe blame daal diya. They believed it. Genius move bhai.",
+    "🤡 Joker suit pehna tha. Nobody suspected a thing. Respect.",
+    "🧠 Big brain play! Tu khud bhi shocked hoga ki yeh kaam kar gaya.",
+    "😎 So smooth bhai, unhone thank you bola jaate waqt. LOL.",
+    "🤑 Paisa aa gaya, mood ban gaya. Chal chai pite hain.",
+    "🐍 Saanp jaisi chaal. Silent, deadly, successful. Bindaas!",
+    "🦸 Criminal mastermind unlocked. CBI notes le rahi hai teri.",
+]
+
+CRIME_LOSS_MSGS = [
+    "🚓 Bhaagте waqt apne hi pair pe gir gaya. Classic Bollywood fail.",
+    "📸 Camera dhakna bhool gaya. Bhai seedha selfie de di police ko.",
+    "🤦 Crime scene pe ID card chhod aaya. Bro are you okay??",
+    "😂 Victim ne tujhe chase kiya. Ab tu victim hai. Ironic.",
+    "💀 Sweeper ne pakad liya. SWEEPER NE. Sharam kar thodi.",
+    "🤡 Galat number dial kiya backup ke liye. Pizza delivery aa gayi.",
+    "🫠 Itna bura plan tha ki police ko bhi taras aa gaya.",
+    "🐔 Darr ke wall se takra gaya. The wall won. You lost.",
+]
+
+HEIST_WIN_MSGS = [
+    "🎬 Ocean's Eleven vibes! Pure cinema tha yaar. Ekdum mast!",
+    "💼 Bags bhar ke nikle aur security guard ne khud darwaza khola. LOL.",
+    "🧨 Plan kaam aaya - jo tha aur jo nahi tha dono ne kaam kiya!",
+    "🦅 Bhoot jaisa aaya, bhoot jaisa gaya. Kisi ko kuch pata nahi.",
+    "🎯 Mission Impossible ka BGM bajne laga. Flawless execution crew!",
+    "🤑 Poori crew ne aaj mast khaya. Respect to the gang!",
+]
+
+HEIST_LOSS_MSGS = [
+    "💥 Alarm bypass karte waqt kisi ne chheenk maari. Sab barbaad ho gaya.",
+    "🚨 Getaway driver seedha police station le gaya. Bhai seriously??",
+    "😭 Bags lena bhool gaye. Wapas aaye. Pakde gaye. Typical Indian heist.",
+    "🤦 Ek banda mid-heist Instagram pe story daal raha tha. Fired on spot.",
+    "🐕 Kutte ne blueprint kha liya. Everything fell apart bhai.",
+    "📵 Walkie talkie galat channel pe tha poore time. Communication zero.",
+    "🫠 Itna bura heist tha ki criminals ko bhi sharam aa gayi.",
+]
+
 def cmd_crime(message):
     p = db.get_player(message.from_user.id)
     if not p: _bot.reply_to(message, "❗ Register first with /start"); return
@@ -598,7 +640,7 @@ def cmd_crime(message):
         new_bal = db.get_player(message.from_user.id)["chips"]
         _bot.reply_to(message,
             f"😈 *Crime Successful!*\n\n{title}\n+*{fmt(reward)}* chips!\n\n"
-            f"Balance: *{fmt(new_bal)}*\n+{Config.XP_CRIME} XP\n⏰ Next crime in 15 minutes")
+            f"{random.choice(CRIME_WIN_MSGS)}\n\nBalance: *{fmt(new_bal)}*\n+{Config.XP_CRIME} XP\n⏰ Next crime in 15 minutes")
     else:
         # Fine = % of wallet, not all chips
         fine = max(100, int(p["chips"] * fine_pct))
@@ -608,7 +650,7 @@ def cmd_crime(message):
         _bot.reply_to(message,
             f"🚔 *Caught by Police!*\n\n{title} — *FAILED* 💀\n"
             f"Fined *{fmt(fine)}* chips ({int(fine_pct*100)}% of wallet)\n\n"
-            f"Balance: *{fmt(new_bal)}*\n⏰ Next crime in 15 minutes")
+            f"{random.choice(CRIME_LOSS_MSGS)}\n\nBalance: *{fmt(new_bal)}*\n⏰ Next crime in 15 minutes")
 
 # ── Heist ─────────────────────────────────────────────────────────────
 pending_heists = {}
