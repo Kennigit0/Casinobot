@@ -286,7 +286,8 @@ def handle_bank_callbacks(call):
 
 def cmd_announce(message):
     uid = message.from_user.id
-    if not db.is_admin(uid):
+    from config import Config
+    if uid not in Config.ADMIN_IDS:
         _bot.reply_to(message, "❌ Admins only!"); return
     args = message.text.split(None, 1)
     if len(args) < 2:
@@ -314,7 +315,7 @@ def _auto_save_group(message):
         db.save_group(message.chat.id)
 
 def register_features(bot_instance):
-    bot_instance.register_message_handler(_auto_save_group, func=lambda m: True)
+    bot_instance.register_message_handler(_auto_save_group, func=lambda m: m.chat.type in ("group","supergroup"))
     bot_instance.register_callback_query_handler(
         handle_bank_callbacks,
         func=lambda c: c.data in ['bank_dep','bank_with','bank_int','bank_upg','bank_upg_confirm','lb_chips','lb_xp']
