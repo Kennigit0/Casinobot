@@ -247,9 +247,11 @@ BANK_LEVELS = {
 }
 
 
+# Add your group chat IDs here
+ANNOUNCE_GROUPS = [-1002255980005]  # e.g. [-1001234567890, -1009876543210]
+
 def get_all_groups():
-    rows = execute("SELECT DISTINCT chat_id FROM players WHERE chat_id IS NOT NULL", fetch=True)
-    return [r["chat_id"] for r in rows] if rows else []
+    return ANNOUNCE_GROUPS
 
 def add_win(user_id):
     execute("UPDATE players SET wins = COALESCE(wins,0) + 1 WHERE user_id=?", (user_id,))
