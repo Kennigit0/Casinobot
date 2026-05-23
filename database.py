@@ -246,6 +246,11 @@ BANK_LEVELS = {
     6: {"name": "Elite",    "limit": 999_999_999, "upgrade_cost": None},
 }
 
+
+def get_all_groups():
+    rows = execute("SELECT DISTINCT chat_id FROM players WHERE chat_id IS NOT NULL", fetch=True)
+    return [r["chat_id"] for r in rows] if rows else []
+
 def add_win(user_id):
     execute("UPDATE players SET wins = COALESCE(wins,0) + 1 WHERE user_id=?", (user_id,))
 

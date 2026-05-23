@@ -283,6 +283,26 @@ def handle_bank_callbacks(call):
         _bot.answer_callback_query(call.id)
         _bot.send_message(call.message.chat.id, tips.get(game, "Use the command to play!"))
 
+
+def cmd_announce(message):
+    uid = message.from_user.id
+    if not db.is_admin(uid):
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split(None, 1)
+    if len(args) < 2:
+        _bot.reply_to(message, "Usage: /announce [your message]"); return
+    text = args[1]
+    groups = db.get_all_groups()
+    sent = 0
+    for chat_id in groups:
+        try:
+            _bot.send_message(chat_id,
+                f"📢 *Announcement*\n\n{text}",
+                parse_mode="Markdown")
+            sent += 1
+        except: pass
+    _bot.reply_to(message, f"✅ Sent to {sent} groups!")
+
 def register_features(bot_instance):
     bot_instance.register_callback_query_handler(
         handle_bank_callbacks,
@@ -304,6 +324,7 @@ def register_features(bot_instance):
         (["marry"],             cmd_marry),
         (["divorce"],           cmd_divorce),
         (["profile", "me"],     cmd_profile),
+        (["announce"],            cmd_announce),
         (["games","game"],        cmd_games),
         (["interest"],            cmd_interest),
         (["bank"],                cmd_bank),
