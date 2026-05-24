@@ -47,6 +47,27 @@ def cmd_leaderboard(message):
 
 def _send_leaderboard(message, by):
     rows   = db.get_leaderboard(10, by)
+    title  = "🏆 *Leaderboard — Top 10*" if by == "chips" else "⭐ *Leaderboard — Top 10 XP*"
+    lines  = [f"{title}\n"]
+    medals = ["🥇","🥈","🥉"]
+    for i, r in enumerate(rows):
+        m   = medals[i] if i < 3 else f"{i+1}."
+        vip = " 👑" if r.get("vip") else ""
+        if by == "xp":
+            xp  = r.get("xp") or 0
+            lvl = db.xp_to_level(xp)
+            lines.append(f"{m} *{r['first_name']}*{vip} — Lv.{lvl} | {fmt(xp)} XP")
+        else:
+            total = (r["chips"] or 0) + (r.get("bank") or 0)
+            lines.append(f"{m} *{r['first_name']}*{vip} — {fmt(total)} chips")
+    markup = _markup([
+        _btn("✅ By Chips" if by=="chips" else "💰 By Chips", "lb_chips"),
+        _btn("✅ By XP"    if by=="xp"    else "⭐ By XP",    "lb_xp"),
+    ])
+    _bot.reply_to(message, "\n".join(lines), parse_mode="Markdown", reply_markup=markup)
+
+def _send_leaderboard(message, by):
+    rows   = db.get_leaderboard(10, by)
     title  = "🏆 *Top 10 — Richest*" if by == "chips" else "⭐ *Top 10 — XP*"
     lines  = [f"{title}\n"]
     medals = ["🥇","🥈","🥉"]
@@ -168,13 +189,27 @@ def handle_bank_callbacks(call):
 
     if data == "bank_dep":
         _bot.answer_callback_query(call.id)
+        p2 = db.get_player(uid)
+        chips = p2["chips"]
+        markup2 = _markup(
+            [_btn("1,000", "dep_1000"), _btn("5,000", "dep_5000"), _btn("10,000", "dep_10000")],
+            [_btn("25,000", "dep_25000"), _btn("50,000", "dep_50000"), _btn("All", "dep_all")],
+        )
         _bot.send_message(call.message.chat.id,
-            f"💰 Send: `/deposit [amount]` or `/deposit all`\n"
-            f"Bank limit: *{fmt(db.get_bank_limit(uid))}*")
+            f"💰 *How much to deposit?*\n👛 Wallet: *{fmt(chips)}* chips",
+            parse_mode="Markdown", reply_markup=markup2)
 
     elif data == "bank_with":
         _bot.answer_callback_query(call.id)
-        _bot.send_message(call.message.chat.id, "💸 Send: `/withdraw [amount]` or `/withdraw all`")
+        p2 = db.get_player(uid)
+        bank = p2.get("bank") or 0
+        markup2 = _markup(
+            [_btn("1,000", "with_1000"), _btn("5,000", "with_5000"), _btn("10,000", "with_10000")],
+            [_btn("25,000", "with_25000"), _btn("50,000", "with_50000"), _btn("All", "with_all")],
+        )
+        _bot.send_message(call.message.chat.id,
+            f"💸 *How much to withdraw?*\n🏦 Bank: *{fmt(bank)}* chips",
+            parse_mode="Markdown", reply_markup=markup2)
 
     elif data == "bank_int":
         ok, bonus, msg = db.claim_interest(uid)
@@ -271,6 +306,38 @@ def handle_bank_callbacks(call):
                 _bot.send_message(call.message.chat.id, f"✅ *{info['name']}* equipped for {cat}!")
                 break
 
+    elif data.startswith("dep_"):
+        amt_str = data.replace("dep_","")
+        p2  = db.get_player(uid)
+        amt = p2["chips"] if amt_str == "all" else int(amt_str)
+        if amt <= 0 or p2["chips"] < amt:
+            _bot.answer_callback_query(call.id, "❌ Not enough chips!", show_alert=True); return
+        ok, result = db.bank_deposit(uid, amt)
+        if ok:
+            new = db.get_player(uid)
+            _bot.answer_callback_query(call.id, f"✅ Deposited {fmt(result)} chips!")
+            _bot.send_message(call.message.chat.id,
+                f"✅ Deposited *{fmt(result)}* chips!\n"
+                f"🏦 Bank: *{fmt(new['bank'])}*\n👛 Wallet: *{fmt(new['chips'])}*",
+                parse_mode="Markdown")
+        else:
+            _bot.answer_callback_query(call.id, result, show_alert=True)
+
+    elif data.startswith("with_"):
+        amt_str = data.replace("with_","")
+        p2   = db.get_player(uid)
+        bank = p2.get("bank") or 0
+        amt  = bank if amt_str == "all" else int(amt_str)
+        if amt <= 0 or bank < amt:
+            _bot.answer_callback_query(call.id, "❌ Not enough in bank!", show_alert=True); return
+        db.execute("UPDATE players SET bank=bank-?, chips=chips+? WHERE user_id=?", (amt, amt, uid))
+        new = db.get_player(uid)
+        _bot.answer_callback_query(call.id, f"✅ Withdrew {fmt(amt)} chips!")
+        _bot.send_message(call.message.chat.id,
+            f"✅ Withdrew *{fmt(amt)}* chips!\n"
+            f"👛 Wallet: *{fmt(new['chips'])}*\n🏦 Bank: *{fmt(new['bank'])}*",
+            parse_mode="Markdown")
+
     elif data.startswith("game_"):
         game = data.replace("game_","")
         tips = {
@@ -331,7 +398,7 @@ def register_features(bot_instance):
     bot_instance.register_callback_query_handler(
         handle_bank_callbacks,
         func=lambda c: c.data in ['bank_dep','bank_with','bank_int','bank_upg','bank_upg_confirm','lb_chips','lb_xp']
-            or c.data.startswith('shop_') or c.data.startswith('equip_') or c.data.startswith('game_')
+            or c.data.startswith('shop_') or c.data.startswith('equip_') or c.data.startswith('game_') or c.data.startswith('dep_') or c.data.startswith('with_')
     )
     global _bot
     _bot = bot_instance
