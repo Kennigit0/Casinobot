@@ -45,7 +45,7 @@ def cmd_leaderboard(message):
     by   = "xp" if len(args) > 1 and args[1].lower() == "xp" else "chips"
     _send_leaderboard(message, by)
 
-def _send_leaderboard(message, by):
+def _send_leaderboard(message, by, chat_id=None):
     rows   = db.get_leaderboard(10, by)
     title  = "🏆 *Leaderboard — Top 10*" if by == "chips" else "⭐ *Leaderboard — Top 10 XP*"
     lines  = [f"{title}\n"]
@@ -64,7 +64,8 @@ def _send_leaderboard(message, by):
         _btn("✅ By Chips" if by=="chips" else "💰 By Chips", "lb_chips"),
         _btn("✅ By XP"    if by=="xp"    else "⭐ By XP",    "lb_xp"),
     ])
-    _bot.reply_to(message, "\n".join(lines), parse_mode="Markdown", reply_markup=markup)
+    cid = chat_id or message.chat.id
+    _bot.send_message(cid, "\n".join(lines), parse_mode="Markdown", reply_markup=markup)
 
 
 
@@ -221,11 +222,11 @@ def handle_bank_callbacks(call):
 
     elif data == "lb_chips":
         _bot.answer_callback_query(call.id)
-        _send_leaderboard(call.message, "chips")
+        _send_leaderboard(call.message, "chips", call.message.chat.id)
 
     elif data == "lb_xp":
         _bot.answer_callback_query(call.id)
-        _send_leaderboard(call.message, "xp")
+        _send_leaderboard(call.message, "xp", call.message.chat.id)
 
     elif data.startswith("shop_"):
         cat = data.replace("shop_","")
