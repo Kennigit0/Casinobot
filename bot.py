@@ -290,6 +290,9 @@ def cmd_slots(message):
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
+    if p["chips"] <= 0:
+        bot.reply_to(message, f"❌ You have no chips! Use /daily or /work to earn some.", parse_mode="Markdown")
+        return
     min_bet = max(1, int(p["chips"] * 0.15))
     if bet > p["chips"]:
         bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
@@ -341,6 +344,9 @@ def cmd_dice(message):
         bet = int(args[2].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
+    if p["chips"] <= 0:
+        bot.reply_to(message, f"❌ You have no chips! Use /daily or /work to earn some.", parse_mode="Markdown")
+        return
     min_bet = max(1, int(p["chips"] * 0.15))
     if bet > p["chips"]:
         bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
@@ -392,6 +398,9 @@ def cmd_roulette(message):
         bet = int(args[3].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet amount."); return
+    if p["chips"] <= 0:
+        bot.reply_to(message, f"❌ You have no chips! Use /daily or /work to earn some.", parse_mode="Markdown")
+        return
     min_bet = max(1, int(p["chips"] * 0.15))
     if bet > p["chips"]:
         bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
@@ -439,6 +448,9 @@ def cmd_bj(message):
         bet = int(args[1].replace(",", ""))
     except ValueError:
         bot.reply_to(message, "❌ Invalid bet."); return
+    if p["chips"] <= 0:
+        bot.reply_to(message, f"❌ You have no chips! Use /daily or /work to earn some.", parse_mode="Markdown")
+        return
     min_bet = max(1, int(p["chips"] * 0.15))
     if bet > p["chips"]:
         bot.reply_to(message, f"❌ Not enough chips! You only have *{p['chips']:,}* chips.", parse_mode="Markdown")
