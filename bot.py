@@ -464,7 +464,7 @@ def cmd_bj(message):
     sent = bot.reply_to(message,
         f"🃏 *Blackjack Table* #{gid}\n"
         f"Bet: *{fmt(bet)}* chips\nPlayers: 1/6\n1. *{name(message.from_user)}*\n\n"
-        f"⏳ Joining open for *30s*...", reply_markup=markup)
+        f"✋ *Start the game when ready!*", reply_markup=markup)
     game["message_id"] = sent.message_id
     pending_bj[gid]    = game
     db.save_bj_game(gid, message.chat.id, sent.message_id, uid, bet, game)
