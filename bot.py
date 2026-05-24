@@ -469,12 +469,7 @@ def cmd_bj(message):
     pending_bj[gid]    = game
     db.save_bj_game(gid, message.chat.id, sent.message_id, uid, bet, game)
 
-    def auto_start():
-        time.sleep(30)
-        if gid in pending_bj:
-            start_bj_game(gid, message.chat.id, sent.message_id)
 
-    threading.Thread(target=auto_start, daemon=True).start()
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("bj_join_"))
 def cb_bj_join(call):
@@ -491,7 +486,6 @@ def cb_bj_join(call):
     bet = game["bet"]
     if p["chips"] < bet:
         bot.answer_callback_query(call.id, f"Not enough chips! Need {fmt(bet)}."); return
-    db.update_chips(uid, -bet)
     blackjack.add_player(game, uid, name(call.from_user))
     db.save_bj_game(gid, game["chat_id"], game["message_id"], game["host_id"], bet, game)
     player_list = "\n".join(f"{i+1}. *{pl['name']}*" for i, pl in enumerate(game["players"]))
