@@ -66,25 +66,7 @@ def _send_leaderboard(message, by):
     ])
     _bot.reply_to(message, "\n".join(lines), parse_mode="Markdown", reply_markup=markup)
 
-def _send_leaderboard(message, by):
-    rows   = db.get_leaderboard(10, by)
-    title  = "🏆 *Top 10 — Richest*" if by == "chips" else "⭐ *Top 10 — XP*"
-    lines  = [f"{title}\n"]
-    medals = ["🥇","🥈","🥉"]
-    for i, r in enumerate(rows):
-        m   = medals[i] if i < 3 else f"{i+1}."
-        vip = " 👑" if r["vip"] else ""
-        lvl = db.xp_to_level(r.get("xp") or 0)
-        if by == "xp":
-            lines.append(f"{m} *{r['first_name']}*{vip} — Lv.{lvl} | {fmt(r.get('xp',0))} XP")
-        else:
-            total = (r["chips"] or 0) + (r.get("bank") or 0)
-            lines.append(f"{m} *{r['first_name']}*{vip} — {fmt(total)} chips")
-    markup = _markup([
-        _btn("💰 By Chips" if by == "xp" else "✅ By Chips", "lb_chips"),
-        _btn("✅ By XP" if by == "xp" else "⭐ By XP",      "lb_xp"),
-    ])
-    _bot.reply_to(message, "\n".join(lines), reply_markup=markup)
+
 
 # ── /shop ──────────────────────────────────────────────────────────────
 def cmd_shop(message):
@@ -120,7 +102,8 @@ def cmd_inventory(message):
     uid  = message.from_user.id
     p    = db.get_player(uid)
     if not p: _bot.reply_to(message, "❗ /start first"); return
-    from activities import TOOLS
+    from config import Config
+    TOOLS = {'fishing': Config.FISHING_TOOLS, 'mining': Config.MINING_TOOLS, 'farming': Config.FARMING_TOOLS}
     tools = db.get_player_tools(uid)
     owned = tools.get("owned_tools", [])
     if isinstance(owned, str):
@@ -403,29 +386,26 @@ def register_features(bot_instance):
     global _bot
     _bot = bot_instance
     for cmd, fn in [
-        (["bank"],              cmd_bank),
-        (["deposit"],           cmd_deposit),
-        (["withdraw"],          cmd_withdraw),
-        (["interest"],          cmd_interest),
-        (["rob"],               cmd_rob),
-        (["work"],              cmd_work),
-        (["crime"],             cmd_crime),
-        (["heist"],             cmd_heist),
-        (["gift"],              cmd_gift),
-        (["marry"],             cmd_marry),
-        (["divorce"],           cmd_divorce),
-        (["profile", "me"],     cmd_profile),
-        (["group_to_play","grouptoplay"], cmd_group_to_play),
-        (["announce"],            cmd_announce),
-        (["games","game"],        cmd_games),
-        (["interest"],            cmd_interest),
-        (["bank"],                cmd_bank),
-        (["leaderboard","top","lb"], cmd_leaderboard),
-        (["shop"],                cmd_shop),
-        (["inventory"],           cmd_inventory),
-        (["bankupgrade","upgradebank"], cmd_bankupgrade),
-        (["deposit"],                  cmd_deposit),
-        (["level", "xp"],       cmd_level),
+        (["bank"],                       cmd_bank),
+        (["deposit"],                    cmd_deposit),
+        (["withdraw"],                   cmd_withdraw),
+        (["interest"],                   cmd_interest),
+        (["rob"],                        cmd_rob),
+        (["work"],                       cmd_work),
+        (["crime"],                      cmd_crime),
+        (["heist"],                      cmd_heist),
+        (["gift"],                       cmd_gift),
+        (["marry"],                      cmd_marry),
+        (["divorce"],                    cmd_divorce),
+        (["profile", "me"],              cmd_profile),
+        (["group_to_play","grouptoplay"],cmd_group_to_play),
+        (["announce"],                   cmd_announce),
+        (["games","game"],               cmd_games),
+        (["leaderboard","top","lb"],     cmd_leaderboard),
+        (["shop"],                       cmd_shop),
+        (["inventory"],                  cmd_inventory),
+        (["bankupgrade","upgradebank"],  cmd_bankupgrade),
+        (["level", "xp"],               cmd_level),
     ]:
         bot_instance.register_message_handler(fn, commands=cmd)
     bot_instance.register_callback_query_handler(cb_marry,  func=lambda c: c.data.startswith("marry_"))
@@ -482,26 +462,24 @@ def cmd_bank(message):
     if not p: _bot.reply_to(message, "❗ Register first with /start"); return
     bank   = p.get("bank") or 0
     wallet = p["chips"]
+    lvl    = p.get("bank_level") or 0
+    info   = db.BANK_LEVELS[lvl]
+    limit  = info["limit"]
+    pct    = f"{bank/limit*100:.1f}%" if limit < 999_999_999 else "MAX"
+    markup = _markup(
+        [_btn("💰 Deposit", "bank_dep"), _btn("💸 Withdraw", "bank_with")],
+        [_btn("📈 Interest", "bank_int"), _btn("⬆️ Upgrade", "bank_upg")],
+    )
     _bot.reply_to(message,
         f"🏦 *{p['first_name']}'s Bank*\n\n"
         f"👛 Wallet: *{fmt(wallet)}* chips\n"
-        f"🏦 Bank:   *{fmt(bank)}* chips\n"
+        f"🏦 Bank:   *{fmt(bank)}* / *{fmt(limit)}* ({pct})\n"
         f"💰 Total:  *{fmt(wallet + bank)}* chips\n\n"
         f"🔒 Banked chips are *safe from robbery!*\n"
-        f"📈 Earn *3% daily interest* with /interest")
+        f"📈 Earn *3% daily interest* with /interest",
+        parse_mode="Markdown", reply_markup=markup)
 
-def cmd_deposit(message):
-    p = db.get_player(message.from_user.id)
-    if not p: _bot.reply_to(message, "❗ Register first with /start"); return
-    args = message.text.split()
-    if len(args) < 2: _bot.reply_to(message, "Usage: `/deposit [amount]`"); return
-    try: amount = int(args[1].replace(",", ""))
-    except: _bot.reply_to(message, "❌ Invalid amount."); return
-    if amount <= 0: _bot.reply_to(message, "❌ Amount must be positive."); return
-    if p["chips"] < amount: _bot.reply_to(message, f"❌ Not enough chips! Wallet: *{fmt(p['chips'])}*"); return
-    db.bank_deposit(message.from_user.id, amount)
-    new = db.get_player(message.from_user.id)
-    _bot.reply_to(message, f"🏦 Deposited *{fmt(amount)}* chips!\n👛 Wallet: *{fmt(new['chips'])}*\n🏦 Bank: *{fmt(new['bank'])}*")
+
 
 def cmd_withdraw(message):
     p = db.get_player(message.from_user.id)
