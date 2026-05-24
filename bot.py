@@ -466,7 +466,6 @@ def cmd_bj(message):
     uid  = message.from_user.id
     game = blackjack.new_game(uid, bet, message.chat.id)
     gid  = game["game_id"]
-    db.update_chips(uid, -bet)
     blackjack.add_player(game, uid, name(message.from_user))
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
