@@ -377,6 +377,143 @@ def cmd_group_to_play(message):
         "Join and start playing! /start to register.",
         parse_mode="Markdown", reply_markup=markup)
 
+
+def cmd_addchips(message):
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split()
+    if len(args) < 3:
+        _bot.reply_to(message, "Usage: /addchips [user_id] [amount]"); return
+    try:
+        uid = int(args[1]); amount = int(args[2])
+    except:
+        _bot.reply_to(message, "❌ Invalid input."); return
+    p = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❌ Player not found."); return
+    db.update_chips(uid, amount)
+    new = db.get_player(uid)
+    sign = "+" if amount >= 0 else ""
+    name = p['first_name']
+    bal  = new['chips']
+    _bot.reply_to(message, f"✅ *{name}*: {sign}{amount:,} chips\n💰 New balance: *{bal:,}*", parse_mode="Markdown")
+
+def cmd_removechips(message):
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split()
+    if len(args) < 3:
+        _bot.reply_to(message, "Usage: /removechips [user_id] [amount]"); return
+    try:
+        uid = int(args[1]); amount = int(args[2])
+    except:
+        _bot.reply_to(message, "❌ Invalid input."); return
+    p = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❌ Player not found."); return
+    db.update_chips(uid, -amount)
+    new = db.get_player(uid)
+    name = p['first_name']
+    bal  = new['chips']
+    _bot.reply_to(message, f"✅ *{name}*: -{amount:,} chips\n💰 New balance: *{bal:,}*", parse_mode="Markdown")
+
+def cmd_addgems(message):
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split()
+    if len(args) < 3:
+        _bot.reply_to(message, "Usage: /addgems [user_id] [amount]"); return
+    try:
+        uid = int(args[1]); amount = int(args[2])
+    except:
+        _bot.reply_to(message, "❌ Invalid input."); return
+    p = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❌ Player not found."); return
+    import gems as gems_module
+    gems_module.add_gems(uid, amount)
+    new = db.get_player(uid)
+    name = p['first_name']
+    gems = new.get('gems', 0)
+    _bot.reply_to(message, f"✅ *{name}*: +{amount} 💎\n💎 New balance: *{gems}*", parse_mode="Markdown")
+
+def cmd_removegems(message):
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split()
+    if len(args) < 3:
+        _bot.reply_to(message, "Usage: /removegems [user_id] [amount]"); return
+    try:
+        uid = int(args[1]); amount = int(args[2])
+    except:
+        _bot.reply_to(message, "❌ Invalid input."); return
+    p = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❌ Player not found."); return
+    import gems as gems_module
+    gems_module.spend_gems(uid, amount)
+    new = db.get_player(uid)
+    name = p['first_name']
+    gems = new.get('gems', 0)
+    _bot.reply_to(message, f"✅ *{name}*: -{amount} 💎\n💎 New balance: *{gems}*", parse_mode="Markdown")
+
+def cmd_playerinfo(message):
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split()
+    if len(args) < 2:
+        _bot.reply_to(message, "Usage: /playerinfo [user_id]"); return
+    try: uid = int(args[1])
+    except: _bot.reply_to(message, "❌ Invalid ID."); return
+    p = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❌ Player not found."); return
+    _bot.reply_to(message,
+        f"👤 *Player Info*\n\n"
+        f"Name: *{p['first_name']}*\n"
+        f"ID: `{uid}`\n"
+        f"💰 Chips: *{p['chips']:,}*\n"
+        f"🏦 Bank: *{(p.get('bank') or 0):,}*\n"
+        f"💎 Gems: *{(p.get('gems') or 0)}*\n"
+        f"⭐ XP: *{(p.get('xp') or 0):,}*\n"
+        f"🏅 Wins: *{(p.get('wins') or 0)}* | Losses: *{(p.get('losses') or 0)}*\n"
+        f"VIP: *{'Yes' if p.get('vip') else 'No'}*", parse_mode="Markdown")
+
+
+def cmd_removetotal(message):
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admins only!"); return
+    args = message.text.split()
+    if len(args) < 3:
+        _bot.reply_to(message, "Usage: /removetotal [user_id] [amount]"); return
+    try:
+        uid = int(args[1]); amount = int(args[2])
+    except:
+        _bot.reply_to(message, "❌ Invalid input."); return
+    p = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❌ Player not found."); return
+    wallet = p["chips"]
+    bank   = p.get("bank") or 0
+    total  = wallet + bank
+    if total < amount:
+        _bot.reply_to(message, f"❌ Player only has *{total:,}* total chips.", parse_mode="Markdown"); return
+    if wallet >= amount:
+        db.update_chips(uid, -amount)
+        from_wallet = amount; from_bank = 0
+    else:
+        from_wallet = wallet
+        from_bank   = amount - wallet
+        db.update_chips(uid, -from_wallet)
+        db.execute("UPDATE players SET bank=bank-? WHERE user_id=?", (from_bank, uid))
+    new = db.get_player(uid)
+    _bot.reply_to(message,
+        f"✅ Removed *{amount:,}* from *{p['first_name']}*\n"
+        f"  👛 From wallet: *{from_wallet:,}*\n"
+        f"  🏦 From bank: *{from_bank:,}*\n"
+        f"💰 New wallet: *{new['chips']:,}*\n"
+        f"🏦 New bank: *{(new.get('bank') or 0):,}*", parse_mode="Markdown")
+
 def register_features(bot_instance):
     
     bot_instance.register_callback_query_handler(
@@ -401,6 +538,12 @@ def register_features(bot_instance):
         (["profile", "me"],              cmd_profile),
         (["group_to_play","grouptoplay"],cmd_group_to_play),
         (["announce"],                   cmd_announce),
+        (["addchips"],                   cmd_addchips),
+        (["removechips"],                cmd_removechips),
+        (["addgems"],                    cmd_addgems),
+        (["removegems"],                 cmd_removegems),
+        (["removetotal"],                cmd_removetotal),
+        (["playerinfo"],                 cmd_playerinfo),
         (["games","game"],               cmd_games),
         (["leaderboard","top","lb"],     cmd_leaderboard),
         (["shop"],                       cmd_shop),
