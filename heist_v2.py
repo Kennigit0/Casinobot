@@ -392,7 +392,7 @@ def cmd_heist2(message):
     if not ok: _bot.reply_to(message, f"⏰ {msg}"); return
     args = message.text.split()
     if len(args) < 2:
-        _bot.reply_to(message, "Usage: `/heist2 [bet]`", parse_mode="Markdown"); return
+        _bot.reply_to(message, "Usage: `/heist [bet]`", parse_mode="Markdown"); return
     try: bet = int(args[1].replace(",", ""))
     except: _bot.reply_to(message, "❌ Invalid bet."); return
     if p["chips"] < bet:
@@ -444,7 +444,7 @@ def cb_heist2(call):
 def register_heist2(bot_instance):
     global _bot
     _bot = bot_instance
-    bot_instance.register_message_handler(cmd_heist2, commands=["heist2"])
+    bot_instance.register_message_handler(cmd_heist2, commands=["heist", "heist2"])
     bot_instance.register_callback_query_handler(
         cb_heist2,
         func=lambda c: c.data.startswith("hv2_")
