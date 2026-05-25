@@ -10,6 +10,7 @@ load_dotenv()
 import database as db
 import features
 import activities
+import heist_v2
 import gems
 import minigames
 from config import Config
@@ -651,6 +652,8 @@ if __name__ == "__main__":
     print("✅ Features loaded")
     activities.register_activities(bot)
     print("✅ Activities loaded")
+    heist_v2.register_heist2(bot)
+    print("✅ Heist V2 loaded")
     gems.register_gems(bot)
     print("✅ Gems loaded")
     minigames.register_minigames(bot)
