@@ -88,6 +88,7 @@ def cmd_fish(message):
         total += chips
 
     db.set_activity_time(message.from_user.id, "last_fish")
+    db.execute("UPDATE players SET fish_count=COALESCE(fish_count,0)+1 WHERE user_id=?", (message.from_user.id,))
     db.update_chips(message.from_user.id, total)
     db.add_xp(message.from_user.id, Config.XP_FISH)
     new_bal = db.get_player(message.from_user.id)["chips"]
@@ -128,6 +129,7 @@ def cmd_mine(message):
         total += chips
 
     db.set_activity_time(message.from_user.id, "last_mine")
+    db.execute("UPDATE players SET mine_count=COALESCE(mine_count,0)+1 WHERE user_id=?", (message.from_user.id,))
     db.update_chips(message.from_user.id, total)
     db.add_xp(message.from_user.id, Config.XP_MINE)
     new_bal = db.get_player(message.from_user.id)["chips"]
@@ -170,6 +172,7 @@ def cmd_farm(message):
         total += chips
 
     db.set_activity_time(message.from_user.id, "last_farm")
+    db.execute("UPDATE players SET farm_count=COALESCE(farm_count,0)+1 WHERE user_id=?", (message.from_user.id,))
     db.update_chips(message.from_user.id, total)
     db.add_xp(message.from_user.id, Config.XP_FARM)
     new_bal = db.get_player(message.from_user.id)["chips"]
