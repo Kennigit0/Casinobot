@@ -713,6 +713,8 @@ def cmd_crime(message):
 
 # ── Heist ─────────────────────────────────────────────────────────────
 pending_heists = {}
+heist_joining = set()  # prevent double join
+heist_joining = set()  # prevent double join
 
 def cmd_heist(message):
     p = db.get_player(message.from_user.id)
@@ -769,12 +771,18 @@ def cb_heist(call):
     uid     = call.from_user.id
     heist   = pending_heists.get(chat_id)
     if not heist: _bot.answer_callback_query(call.id, "Heist already started!"); return
-    if any(u == uid for u, _ in heist["players"]): _bot.answer_callback_query(call.id, "Already in crew!"); return
+    lock_key = f"{chat_id}_{uid}"
+    if lock_key in heist_joining:
+        _bot.answer_callback_query(call.id, "⏳ Already joining..."); return
+    if any(u == uid for u, _ in heist["players"]):
+        _bot.answer_callback_query(call.id, "Already in crew!"); return
+    heist_joining.add(lock_key)
     p = db.get_player(uid)
-    if not p: _bot.answer_callback_query(call.id, "Register first! /start"); return
-    if p["chips"] < heist["bet"]: _bot.answer_callback_query(call.id, f"Need {fmt(heist['bet'])} chips!"); return
+    if not p: _bot.answer_callback_query(call.id, "Register first! /start"); heist_joining.discard(lock_key); return
+    if p["chips"] < heist["bet"]: _bot.answer_callback_query(call.id, f"Need {fmt(heist['bet'])} chips!"); heist_joining.discard(lock_key); return
     db.update_chips(uid, -heist["bet"])
     heist["players"].append((uid, call.from_user.first_name))
+    heist_joining.discard(lock_key)
     names = ", ".join(n for _, n in heist["players"])
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🔫 Join Heist", callback_data=f"heist_join_{chat_id}"))
