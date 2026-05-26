@@ -213,8 +213,13 @@ def handle_answer(message):
         bonus  = STREAK_BONUS * (streak - 1) if streak > 1 else 0
         total  = game["reward"] + bonus
 
-        db.update_chips(uid, total)   # FIXED: was update_balance
+        db.update_chips(uid, total)
         db.add_xp(uid, 20)
+        db.execute("UPDATE players SET minigame_wins=COALESCE(minigame_wins,0)+1 WHERE user_id=?", (uid,))
+        if game["type"] == "trivia":
+            db.execute("UPDATE players SET trivia_wins=COALESCE(trivia_wins,0)+1 WHERE user_id=?", (uid,))
+        import gems as gems_mod
+        gems_mod.check_achievements(uid, cid)
 
         streak_msg = f"\n🔥 *Streak x{streak}!* +{fmt(bonus)} bonus" if streak > 1 else ""
         _bot.send_message(cid,

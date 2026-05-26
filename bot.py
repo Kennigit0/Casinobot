@@ -315,6 +315,7 @@ def cmd_slots(message):
     if net > 0:
         db.add_xp(message.from_user.id, Config.XP_GAME_WIN)
         db.add_win(message.from_user.id)
+        gems.check_achievements(message.from_user.id, message.chat.id)
     else:
         db.add_loss(message.from_user.id)
     new_bal = db.get_player(message.from_user.id)["chips"]

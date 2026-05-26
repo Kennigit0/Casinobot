@@ -110,28 +110,67 @@ def cmd_gems(message):
         f"_winning streaks, and rare activity drops._\n\n"
         f"Use /gemshop to spend them!", parse_mode="Markdown")
 
-def cmd_achievements(message):
-    uid      = message.from_user.id
-    p        = db.get_player(uid)
-    if not p: _bot.reply_to(message, "❗ /start first"); return
+ACH_PAGE_SIZE = 5
+
+def _get_ach_page(uid, page=0):
     unlocked = get_unlocked(uid)
-    done     = [a for k, a in ACHIEVEMENTS.items() if k in unlocked]
-    pending  = [a for k, a in ACHIEVEMENTS.items() if k not in unlocked]
-    lines    = [f"🏆 *Your Achievements* — {len(done)}/{len(ACHIEVEMENTS)}\n"]
-    if done:
-        lines.append("*✅ Unlocked:*")
-        for a in done:
-            lines.append(f"  {a['name']}")
-    if pending:
-        lines.append("\n*🔒 Locked:*")
-        for a in pending[:8]:  # show first 8 locked
-            r = ""
-            if a["reward_chips"]: r += f" +{fmt(a['reward_chips'])} chips"
-            if a["reward_gems"]:  r += f" +{a['reward_gems']} 💎"
-            lines.append(f"  {a['name']} —{r}\n  _{a['desc']}_")
-        if len(pending) > 8:
-            lines.append(f"\n  _...and {len(pending)-8} more_")
-    _bot.reply_to(message, "\n".join(lines), parse_mode="Markdown")
+    all_achs = list(ACHIEVEMENTS.items())
+    done     = [(k,a) for k,a in all_achs if k in unlocked]
+    pending  = [(k,a) for k,a in all_achs if k not in unlocked]
+    combined = done + pending
+    total    = len(combined)
+    pages    = (total + ACH_PAGE_SIZE - 1) // ACH_PAGE_SIZE
+    start    = page * ACH_PAGE_SIZE
+    chunk    = combined[start:start+ACH_PAGE_SIZE]
+    return chunk, len(done), total, pages
+
+def _ach_markup(uid, page, pages):
+    from telebot import types as _types
+    markup = _types.InlineKeyboardMarkup(row_width=3)
+    btns = []
+    if page > 0:
+        btns.append(_types.InlineKeyboardButton("◀", callback_data=f"ach_page_{uid}_{page-1}"))
+    btns.append(_types.InlineKeyboardButton(f"{page+1}/{pages}", callback_data="ach_noop"))
+    if page < pages - 1:
+        btns.append(_types.InlineKeyboardButton("▶", callback_data=f"ach_page_{uid}_{page+1}"))
+    markup.add(*btns)
+    return markup
+
+def _build_ach_text(uid, page=0):
+    unlocked = get_unlocked(uid)
+    chunk, done_count, total, pages = _get_ach_page(uid, page)
+    lines = [f"🏆 *Achievements* — {done_count}/{total} unlocked | Page {page+1}/{pages}\n"]
+    for k, a in chunk:
+        is_done = k in unlocked
+        r = ""
+        if a["reward_chips"]: r += f" +{fmt(a['reward_chips'])} chips"
+        if a["reward_gems"]:  r += f" +{a['reward_gems']} 💎"
+        status = "✅" if is_done else "🔒"
+        lines.append(f"{status} *{a['name']}*{' ~~' if not is_done else ''}")
+        lines.append(f"   _{a['desc']}_  —{r}")
+    return "\n".join(lines), pages
+
+def cmd_achievements(message):
+    uid = message.from_user.id
+    p   = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❗ /start first"); return
+    check_achievements(uid, message.chat.id)
+    text, pages = _build_ach_text(uid, 0)
+    markup = _ach_markup(uid, 0, pages)
+    _bot.reply_to(message, text, parse_mode="Markdown", reply_markup=markup)
+
+def cb_ach_page(call):
+    parts = call.data.split("_")
+    if parts[1] == "noop": _bot.answer_callback_query(call.id); return
+    uid  = int(parts[2])
+    page = int(parts[3])
+    text, pages = _build_ach_text(uid, page)
+    markup = _ach_markup(uid, page, pages)
+    _bot.answer_callback_query(call.id)
+    try:
+        _bot.edit_message_text(text, call.message.chat.id, call.message.message_id,
+            parse_mode="Markdown", reply_markup=markup)
+    except: pass
 
 def cmd_gemshop(message):
     from telebot import types as _types
@@ -240,6 +279,7 @@ def register_gems(bot_instance):
         db.execute("ALTER TABLE players ADD COLUMN farm_count INTEGER DEFAULT 0")
     except: pass
 
+    bot_instance.register_callback_query_handler(cb_ach_page, func=lambda c: c.data.startswith('ach_page_') or c.data == 'ach_noop')
     bot_instance.register_message_handler(cmd_gems,         commands=["gems"])
     bot_instance.register_message_handler(cmd_achievements, commands=["achievements", "ach"])
     bot_instance.register_message_handler(cmd_gemshop,      commands=["gemshop"])
