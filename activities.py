@@ -88,6 +88,8 @@ def cmd_fish(message):
         total += chips
 
     db.set_activity_time(message.from_user.id, "last_fish")
+    import gems as gems_mod
+    gems_mod.check_achievements(message.from_user.id, message.chat.id)
     db.execute("UPDATE players SET fish_count=COALESCE(fish_count,0)+1 WHERE user_id=?", (message.from_user.id,))
     db.update_chips(message.from_user.id, total)
     db.add_xp(message.from_user.id, Config.XP_FISH)
@@ -129,6 +131,8 @@ def cmd_mine(message):
         total += chips
 
     db.set_activity_time(message.from_user.id, "last_mine")
+    import gems as gems_mod
+    gems_mod.check_achievements(message.from_user.id, message.chat.id)
     db.execute("UPDATE players SET mine_count=COALESCE(mine_count,0)+1 WHERE user_id=?", (message.from_user.id,))
     db.update_chips(message.from_user.id, total)
     db.add_xp(message.from_user.id, Config.XP_MINE)
@@ -172,6 +176,8 @@ def cmd_farm(message):
         total += chips
 
     db.set_activity_time(message.from_user.id, "last_farm")
+    import gems as gems_mod
+    gems_mod.check_achievements(message.from_user.id, message.chat.id)
     db.execute("UPDATE players SET farm_count=COALESCE(farm_count,0)+1 WHERE user_id=?", (message.from_user.id,))
     db.update_chips(message.from_user.id, total)
     db.add_xp(message.from_user.id, Config.XP_FARM)

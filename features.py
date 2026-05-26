@@ -780,6 +780,8 @@ def cmd_work(message):
     earned = random.randint(mn, mx)
     db.update_chips(message.from_user.id, earned)
     db.set_last_work(message.from_user.id)
+    import gems as gems_mod
+    gems_mod.check_achievements(message.from_user.id, message.chat.id)
     db.add_xp(message.from_user.id, Config.XP_WORK)
     new_bal = db.get_player(message.from_user.id)["chips"]
     _bot.reply_to(message,
@@ -835,6 +837,8 @@ def cmd_crime(message):
     if not ok: _bot.reply_to(message, f"🕵️ Lay low!\n⏰ {msg}"); return
     title, reward, fine_pct, chance = random.choice(CRIMES_LIST)
     db.set_last_crime(message.from_user.id)
+    import gems as gems_mod
+    gems_mod.check_achievements(message.from_user.id, message.chat.id)
     if random.random() < chance:
         db.update_chips(message.from_user.id, reward)
         db.add_xp(message.from_user.id, Config.XP_CRIME)
