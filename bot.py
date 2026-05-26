@@ -315,6 +315,8 @@ def cmd_slots(message):
     if net > 0:
         db.add_xp(message.from_user.id, Config.XP_GAME_WIN)
         db.add_win(message.from_user.id)
+        if net > 0:
+            db.execute("UPDATE players SET total_earned=COALESCE(total_earned,0)+? WHERE user_id=?", (net, message.from_user.id))
         gems.check_achievements(message.from_user.id, message.chat.id)
     else:
         db.add_loss(message.from_user.id)
