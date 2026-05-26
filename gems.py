@@ -62,7 +62,7 @@ def spend_gems(uid, amount):
     return True
 
 def get_unlocked(uid):
-    rows = db.execute("SELECT achievement_id FROM achievements WHERE user_id=?", (uid,), fetch="all")
+    rows = db.execute("SELECT achievement_id FROM achievements WHERE user_id=%s", (uid,), fetch="all") if True else []
     return {r["achievement_id"] for r in rows} if rows else set()
 
 def unlock_achievement(uid, ach_id):
