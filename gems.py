@@ -288,3 +288,4 @@ def register_gems(bot_instance):
         func=lambda c: c.data.startswith("gem_buy_")
     )
     print("✅ Gems & Achievements loaded")
+# gems columns migration
