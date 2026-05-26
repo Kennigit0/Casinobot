@@ -397,8 +397,10 @@ def cmd_heist2(message):
     except: _bot.reply_to(message, "❌ Invalid bet."); return
     if p["chips"] < bet:
         _bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*", parse_mode="Markdown"); return
-    if bet < 100:
-        _bot.reply_to(message, "❌ Minimum bet is 100 chips."); return
+    if bet < 50_000:
+        _bot.reply_to(message, "❌ Minimum bet is *50,000* chips.", parse_mode="Markdown"); return
+    if bet > 10_000_000:
+        _bot.reply_to(message, "❌ Maximum bet is *10,000,000* chips.", parse_mode="Markdown"); return
     db.update_chips(uid, -bet)
     h = new_heist(uid, message.from_user.first_name, bet, chat_id)
     active_heists[chat_id] = h
