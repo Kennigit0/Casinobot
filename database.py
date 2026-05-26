@@ -214,8 +214,13 @@ def register_player(user_id, username, first_name):
                VALUES (?, ?, ?, ?, 1) ON CONFLICT (user_id) DO NOTHING""",
             (user_id, username or "unknown", first_name or "Player", Config.STARTING_CHIPS))
 
+WALLET_MAX = 999_999_999  # Max chips a player can hold in wallet
+
 def update_chips(user_id, amount):
-    execute("UPDATE players SET chips=chips+? WHERE user_id=?", (amount, user_id))
+    execute(
+        "UPDATE players SET chips=MIN(chips+?, ?) WHERE user_id=?",
+        (amount, WALLET_MAX, user_id)
+    )
     p = get_player(user_id)
     return p["chips"] if p else 0
 
@@ -227,7 +232,7 @@ def claim_daily(user_id, is_vip=False):
     if p.get("last_daily") == today:
         return False, 0, "Already claimed today. Come back tomorrow!"
     bonus = Config.VIP_DAILY_BONUS if is_vip else Config.DAILY_BONUS
-    execute("UPDATE players SET last_daily=?, chips=chips+? WHERE user_id=?", (today, bonus, user_id))
+    execute("UPDATE players SET last_daily=?, chips=MIN(chips+?, ?) WHERE user_id=?", (today, bonus, WALLET_MAX, user_id))
     add_xp(user_id, Config.XP_DAILY)
     return True, bonus, ""
 
@@ -293,7 +298,10 @@ def bank_deposit(user_id, amount):
     return True, amount
 
 def bank_withdraw(user_id, amount):
-    execute("UPDATE players SET bank=bank-?, chips=chips+? WHERE user_id=?", (amount, amount, user_id))
+    execute(
+        "UPDATE players SET bank=bank-?, chips=MIN(chips+?, ?) WHERE user_id=?",
+        (amount, amount, WALLET_MAX, user_id)
+    )
 
 def claim_interest(user_id):
     p = get_player(user_id)
@@ -304,7 +312,11 @@ def claim_interest(user_id):
     if p.get("last_interest") == today:
         return False, 0, "Already claimed interest today. Come back tomorrow!"
     interest = max(1, int(p["bank"] * 0.03))
-    execute("UPDATE players SET bank=bank+?, last_interest=? WHERE user_id=?", (interest, today, user_id))
+    bank_limit = get_bank_limit(user_id)
+    execute(
+        "UPDATE players SET bank=MIN(bank+?, ?), last_interest=? WHERE user_id=?",
+        (interest, bank_limit, today, user_id)
+    )
     return True, interest, ""
 
 # ── Cooldowns ─────────────────────────────────────────────────────────
