@@ -62,11 +62,11 @@ def spend_gems(uid, amount):
     return True
 
 def get_unlocked(uid):
-    rows = db.execute("SELECT achievement_id FROM achievements WHERE user_id=?", (uid,), fetch=True)
+    rows = db.execute("SELECT achievement_id FROM achievements WHERE user_id=?", (uid,), fetch="all")
     return {r["achievement_id"] for r in rows} if rows else set()
 
 def unlock_achievement(uid, ach_id):
-    db.execute("INSERT OR IGNORE INTO achievements (user_id, achievement_id) VALUES (?,?)", (uid, ach_id))
+    db.execute("INSERT INTO achievements (user_id, achievement_id) VALUES (?,?) ON CONFLICT DO NOTHING", (uid, ach_id))
 
 def check_achievements(uid, chat_id=None):
     p        = db.get_player(uid)
