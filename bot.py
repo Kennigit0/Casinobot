@@ -557,6 +557,10 @@ def send_bj_board(gid, chat_id, message_id, game):
             db.update_chips(r["uid"], r["chips"])
             if r["chips"] > 0:
                 db.add_xp(r["uid"], Config.XP_BJ_WIN)
+                db.add_win(r["uid"])
+                db.execute("UPDATE players SET bj_wins=COALESCE(bj_wins,0)+1 WHERE user_id=?", (r["uid"],))
+            elif r["chips"] < 0:
+                db.add_loss(r["uid"])
             sign = "+" if r["chips"] >= 0 else ""
             lines.append(f"• *{r['name']}*: {r['result']} ({sign}{fmt(r['chips'])})")
         text   = "\n".join(lines)

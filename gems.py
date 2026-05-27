@@ -228,7 +228,7 @@ def handle_gem_callbacks(call):
         _bot.answer_callback_query(call.id, "⚡ All cooldowns cleared!", show_alert=True)
 
     elif item_id == "chip_boost":
-        spend_gems(uid, -item["cost"])  # refund - not implemented yet
+        add_gems(uid, item["cost"])  # refund - not implemented yet
         _bot.answer_callback_query(call.id, "⚠️ 2x Chip Boost is coming soon! Gems refunded.", show_alert=True)
 
 # ── Register ─────────────────────────────────────────────────────────────
