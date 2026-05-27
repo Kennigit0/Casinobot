@@ -44,6 +44,9 @@ def execute(query, params=(), fetch=None):
     conn, db_type = get_conn()
     if db_type == "pg":
         query = query.replace("?", "%s")
+    else:
+        # SQLite uses MIN/MAX as scalar; replace LEAST/GREATEST
+        query = query.replace("LEAST(", "MIN(").replace("GREATEST(", "MAX(")
     try:
         cur = conn.cursor()
         cur.execute(query, params)
@@ -217,7 +220,7 @@ def register_player(user_id, username, first_name):
 WALLET_MAX = 999_999_999
 
 def update_chips(user_id, amount):
-    execute("UPDATE players SET chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?", (amount, WALLET_MAX, user_id))
+    execute("UPDATE players SET chips=GREATEST(LEAST(chips+?, ?), 0) WHERE user_id=?", (amount, WALLET_MAX, user_id))
     p = get_player(user_id)
     return p["chips"] if p else 0
 
@@ -229,7 +232,7 @@ def claim_daily(user_id, is_vip=False):
     if p.get("last_daily") == today:
         return False, 0, "Already claimed today. Come back tomorrow!"
     bonus = Config.VIP_DAILY_BONUS if is_vip else Config.DAILY_BONUS
-    execute("UPDATE players SET last_daily=?, chips=MIN(chips+?, ?) WHERE user_id=?", (today, bonus, WALLET_MAX, user_id))
+    execute("UPDATE players SET last_daily=?, chips=LEAST(chips+?, ?) WHERE user_id=?", (today, bonus, WALLET_MAX, user_id))
     add_xp(user_id, Config.XP_DAILY)
     return True, bonus, ""
 
@@ -295,7 +298,7 @@ def bank_deposit(user_id, amount):
     return True, amount
 
 def bank_withdraw(user_id, amount):
-    execute("UPDATE players SET bank=bank-?, chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?", (amount, amount, WALLET_MAX, user_id))
+    execute("UPDATE players SET bank=bank-?, chips=GREATEST(LEAST(chips+?, ?), 0) WHERE user_id=?", (amount, amount, WALLET_MAX, user_id))
 
 def claim_interest(user_id):
     p = get_player(user_id)
@@ -306,7 +309,8 @@ def claim_interest(user_id):
     if p.get("last_interest") == today:
         return False, 0, "Already claimed interest today. Come back tomorrow!"
     interest = max(1, int(p["bank"] * 0.03))
-    execute("UPDATE players SET bank=bank+?, last_interest=? WHERE user_id=?", (interest, today, user_id))
+    bank_limit = get_bank_limit(user_id)
+    execute("UPDATE players SET bank=LEAST(bank+?, ?), last_interest=? WHERE user_id=?", (interest, bank_limit, today, user_id))
     return True, interest, ""
 
 # ── Cooldowns ─────────────────────────────────────────────────────────
