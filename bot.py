@@ -203,8 +203,7 @@ def cmd_daily(message):
     else:
         bot.reply_to(message, f"⏰ {msg}")
 
-# ── /leaderboard ──────────────────────────────────────────────────────
-# ── /leaderboard — handled by features.py ─────────────────────────────
+# /leaderboard — handled by features.py
 
 # ── /vip ─────────────────────────────────────────────────────────────
 @bot.message_handler(commands=["vip"])

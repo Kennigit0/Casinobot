@@ -214,13 +214,10 @@ def register_player(user_id, username, first_name):
                VALUES (?, ?, ?, ?, 1) ON CONFLICT (user_id) DO NOTHING""",
             (user_id, username or "unknown", first_name or "Player", Config.STARTING_CHIPS))
 
-WALLET_MAX = 999_999_999  # Max chips a player can hold in wallet
+WALLET_MAX = 999_999_999
 
 def update_chips(user_id, amount):
-    execute(
-        "UPDATE players SET chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?",
-        (amount, WALLET_MAX, user_id)
-    )
+    execute("UPDATE players SET chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?", (amount, WALLET_MAX, user_id))
     p = get_player(user_id)
     return p["chips"] if p else 0
 
@@ -298,10 +295,7 @@ def bank_deposit(user_id, amount):
     return True, amount
 
 def bank_withdraw(user_id, amount):
-    execute(
-        "UPDATE players SET bank=bank-?, chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?",
-        (amount, amount, WALLET_MAX, user_id)
-    )
+    execute("UPDATE players SET bank=bank-?, chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?", (amount, amount, WALLET_MAX, user_id))
 
 def claim_interest(user_id):
     p = get_player(user_id)
@@ -312,11 +306,7 @@ def claim_interest(user_id):
     if p.get("last_interest") == today:
         return False, 0, "Already claimed interest today. Come back tomorrow!"
     interest = max(1, int(p["bank"] * 0.03))
-    bank_limit = get_bank_limit(user_id)
-    execute(
-        "UPDATE players SET bank=MIN(bank+?, ?), last_interest=? WHERE user_id=?",
-        (interest, bank_limit, today, user_id)
-    )
+    execute("UPDATE players SET bank=bank+?, last_interest=? WHERE user_id=?", (interest, today, user_id))
     return True, interest, ""
 
 # ── Cooldowns ─────────────────────────────────────────────────────────
