@@ -545,6 +545,8 @@ def register_features(bot_instance):
         (["playerinfo"],                 cmd_playerinfo),
         (["games","game"],               cmd_games),
         (["leaderboard","top","lb"],     cmd_leaderboard),
+        (["shop"],                       cmd_shop),
+        (["inventory","inv"],            cmd_inventory),
         (["bankupgrade","upgradebank"],  cmd_bankupgrade),
         (["level", "xp"],               cmd_level),
     ]:
