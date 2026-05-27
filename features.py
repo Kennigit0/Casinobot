@@ -629,6 +629,7 @@ def cmd_withdraw(message):
     if len(args) < 2: _bot.reply_to(message, "Usage: `/withdraw [amount]`"); return
     try: amount = int(args[1].replace(",", ""))
     except: _bot.reply_to(message, "❌ Invalid amount."); return
+    if amount <= 0: _bot.reply_to(message, "❌ Amount must be positive."); return
     bank = p.get("bank") or 0
     if bank < amount: _bot.reply_to(message, f"❌ Not enough in bank! Bank: *{fmt(bank)}*"); return
     db.bank_withdraw(message.from_user.id, amount)
