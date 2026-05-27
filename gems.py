@@ -62,7 +62,7 @@ def spend_gems(uid, amount):
     return True
 
 def get_unlocked(uid):
-    rows = db.execute("SELECT achievement_id FROM achievements WHERE user_id=%s", (uid,), fetch="all") if True else []
+    rows = db.execute("SELECT achievement_id FROM achievements WHERE user_id=?", (uid,), fetch="all") or []
     return {r["achievement_id"] for r in rows} if rows else set()
 
 def unlock_achievement(uid, ach_id):
@@ -214,7 +214,7 @@ def handle_gem_callbacks(call):
             parse_mode="Markdown")
 
     elif item_id == "daily_spin":
-        db.execute("UPDATE players SET last_daily=0 WHERE user_id=?", (uid,))
+        db.execute("UPDATE players SET last_daily=NULL WHERE user_id=?", (uid,))
         _bot.answer_callback_query(call.id, "✅ Daily bonus reset! Use /daily now.", show_alert=True)
 
     elif item_id == "vip_day":
@@ -224,11 +224,12 @@ def handle_gem_callbacks(call):
             f"👑 *{call.from_user.first_name}* is now VIP for 24 hours!", parse_mode="Markdown")
 
     elif item_id == "cooldown_skip":
-        db.execute("UPDATE players SET last_work=0, last_crime=0, last_fish=0, last_mine=0, last_farm=0 WHERE user_id=?", (uid,))
+        db.execute("UPDATE players SET last_work=NULL, last_crime=NULL, last_fish=NULL, last_mine=NULL, last_farm=NULL WHERE user_id=?", (uid,))
         _bot.answer_callback_query(call.id, "⚡ All cooldowns cleared!", show_alert=True)
 
     elif item_id == "chip_boost":
-        _bot.answer_callback_query(call.id, "💰 2x boost active for 1 hour! (coming soon)", show_alert=True)
+        spend_gems(uid, -item["cost"])  # refund - not implemented yet
+        _bot.answer_callback_query(call.id, "⚠️ 2x Chip Boost is coming soon! Gems refunded.", show_alert=True)
 
 # ── Register ─────────────────────────────────────────────────────────────
 def register_gems(bot_instance):

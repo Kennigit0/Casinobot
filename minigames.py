@@ -215,7 +215,7 @@ def handle_answer(message):
 
         db.update_chips(uid, total)
         db.add_xp(uid, 20)
-        db.execute("UPDATE players SET minigame_wins=COALESCE(minigame_wins,0)+1, total_earned=COALESCE(total_earned,0)+?, best_streak=MAX(COALESCE(best_streak,0),?) WHERE user_id=?", (total, streak, uid))
+        db.execute("UPDATE players SET minigame_wins=COALESCE(minigame_wins,0)+1, total_earned=COALESCE(total_earned,0)+?, best_streak=GREATEST(COALESCE(best_streak,0),?) WHERE user_id=?", (total, streak, uid))
         if game["type"] == "trivia":
             db.execute("UPDATE players SET trivia_wins=COALESCE(trivia_wins,0)+1 WHERE user_id=?", (uid,))
         import gems as gems_mod

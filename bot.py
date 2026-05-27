@@ -293,6 +293,7 @@ def cmd_slots(message):
     if not ok:
         bot.reply_to(message, f"⏰ {msg}"); return
     db.set_last_game(message.from_user.id)
+    db.execute("UPDATE players SET slots_played=COALESCE(slots_played,0)+1, max_bet=GREATEST(COALESCE(max_bet,0),?) WHERE user_id=?", (bet, message.from_user.id))
     slot_msg = bot.send_dice(message.chat.id, emoji="🎰")
     value    = slot_msg.dice.value
     time.sleep(3)
