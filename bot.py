@@ -204,25 +204,7 @@ def cmd_daily(message):
         bot.reply_to(message, f"⏰ {msg}")
 
 # ── /leaderboard ──────────────────────────────────────────────────────
-@bot.message_handler(commands=["leaderboard", "top", "lb"])
-def cmd_leaderboard(message):
-    args = message.text.split()
-    by   = "xp" if len(args) > 1 and args[1].lower() == "xp" else "chips"
-    rows = db.get_leaderboard(10, by)
-    title_str = "🏆 *Leaderboard — Top 10*" if by == "chips" else "⭐ *XP Leaderboard — Top 10*"
-    lines  = [f"{title_str}\n"]
-    medals = ["🥇","🥈","🥉"]
-    for i, r in enumerate(rows):
-        m   = medals[i] if i < 3 else f"{i+1}."
-        vip = " 👑" if r["vip"] else ""
-        lvl = db.xp_to_level(r.get("xp") or 0)
-        if by == "xp":
-            lines.append(f"{m} *{r['first_name']}*{vip} — Lv.{lvl} | {fmt(r.get('xp',0))} XP")
-        else:
-            total = (r["chips"] or 0) + (r.get("bank") or 0)
-            lines.append(f"{m} *{r['first_name']}*{vip} — {fmt(total)} chips")
-    lines.append("\n`/leaderboard xp` — sort by level")
-    bot.reply_to(message, "\n".join(lines))
+# ── /leaderboard — handled by features.py ─────────────────────────────
 
 # ── /vip ─────────────────────────────────────────────────────────────
 @bot.message_handler(commands=["vip"])

@@ -270,7 +270,7 @@ def handle_bank_callbacks(call):
                 if p2["chips"] < info["price"]:
                     _bot.answer_callback_query(call.id, f"Need {info['price']:,} chips!", show_alert=True); break
                 db.update_chips(uid, -info["price"])
-                db.add_tool(uid, item_id)
+                db.save_tool_purchase(uid, item_id)
                 _bot.answer_callback_query(call.id, f"✅ Bought {info['name']}!")
                 _bot.send_message(call.message.chat.id,
                     f"✅ Bought *{info['name']}*!\n"
@@ -284,7 +284,7 @@ def handle_bank_callbacks(call):
         all_tools = {**Config.FISHING_TOOLS, **Config.MINING_TOOLS, **Config.FARMING_TOOLS}
         for cat, items in [('fishing', Config.FISHING_TOOLS), ('mining', Config.MINING_TOOLS), ('farming', Config.FARMING_TOOLS)]:
             if item_id in items:
-                db.equip_tool(uid, cat, item_id)
+                db.equip_tool_db(uid, item_id, cat)
                 info = items[item_id]
                 _bot.answer_callback_query(call.id, f"✅ Equipped {info['name']}!")
                 _bot.send_message(call.message.chat.id, f"✅ *{info['name']}* equipped for {cat}!")
@@ -545,8 +545,6 @@ def register_features(bot_instance):
         (["playerinfo"],                 cmd_playerinfo),
         (["games","game"],               cmd_games),
         (["leaderboard","top","lb"],     cmd_leaderboard),
-        (["shop"],                       cmd_shop),
-        (["inventory"],                  cmd_inventory),
         (["bankupgrade","upgradebank"],  cmd_bankupgrade),
         (["level", "xp"],               cmd_level),
     ]:
@@ -631,6 +629,7 @@ def cmd_withdraw(message):
     if len(args) < 2: _bot.reply_to(message, "Usage: `/withdraw [amount]`"); return
     try: amount = int(args[1].replace(",", ""))
     except: _bot.reply_to(message, "❌ Invalid amount."); return
+    if amount <= 0: _bot.reply_to(message, "❌ Amount must be positive."); return
     bank = p.get("bank") or 0
     if bank < amount: _bot.reply_to(message, f"❌ Not enough in bank! Bank: *{fmt(bank)}*"); return
     db.bank_withdraw(message.from_user.id, amount)
@@ -860,7 +859,6 @@ def cmd_crime(message):
 # ── Heist ─────────────────────────────────────────────────────────────
 pending_heists = {}
 heist_joining = set()  # prevent double join
-heist_joining = set()  # prevent double join
 
 def cmd_heist(message):
     p = db.get_player(message.from_user.id)
@@ -925,8 +923,11 @@ def cb_heist(call):
     heist_joining.add(lock_key)
     p = db.get_player(uid)
     if not p: _bot.answer_callback_query(call.id, "Register first! /start"); heist_joining.discard(lock_key); return
+    ok, msg = db.can_heist(uid)
+    if not ok: _bot.answer_callback_query(call.id, f"⏰ {msg}", show_alert=True); heist_joining.discard(lock_key); return
     if p["chips"] < heist["bet"]: _bot.answer_callback_query(call.id, f"Need {fmt(heist['bet'])} chips!"); heist_joining.discard(lock_key); return
     db.update_chips(uid, -heist["bet"])
+    db.set_last_heist(uid)
     heist["players"].append((uid, call.from_user.first_name))
     heist_joining.discard(lock_key)
     names = ", ".join(n for _, n in heist["players"])

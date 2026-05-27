@@ -218,7 +218,7 @@ WALLET_MAX = 999_999_999  # Max chips a player can hold in wallet
 
 def update_chips(user_id, amount):
     execute(
-        "UPDATE players SET chips=MIN(chips+?, ?) WHERE user_id=?",
+        "UPDATE players SET chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?",
         (amount, WALLET_MAX, user_id)
     )
     p = get_player(user_id)
@@ -299,7 +299,7 @@ def bank_deposit(user_id, amount):
 
 def bank_withdraw(user_id, amount):
     execute(
-        "UPDATE players SET bank=bank-?, chips=MIN(chips+?, ?) WHERE user_id=?",
+        "UPDATE players SET bank=bank-?, chips=MAX(MIN(chips+?, ?), 0) WHERE user_id=?",
         (amount, amount, WALLET_MAX, user_id)
     )
 
