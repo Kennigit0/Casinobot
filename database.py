@@ -411,13 +411,10 @@ def save_tool_purchase(user_id, tool_key):
     owned = get_owned_tools(user_id)
     if tool_key not in owned:
         owned.append(tool_key)
-    row = execute("SELECT user_id FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
-    if row:
-        execute("UPDATE player_tools SET owned_tools=? WHERE user_id=?", (json.dumps(owned), user_id))
-    else:
-        execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
-                   VALUES (?, 'wooden_rod', 'stone_pickaxe', 'bare_hands', ?)
-                   ON CONFLICT (user_id) DO NOTHING""", (user_id, json.dumps(owned)))
+    execute("""INSERT INTO player_tools (user_id, fishing_tool, mining_tool, farming_tool, owned_tools)
+               VALUES (?, 'wooden_rod', 'stone_pickaxe', 'bare_hands', ?)
+               ON CONFLICT (user_id) DO UPDATE SET owned_tools=EXCLUDED.owned_tools""",
+            (user_id, json.dumps(owned)))
 
 def equip_tool_db(user_id, tool_key, tool_type):
     row = execute("SELECT user_id FROM player_tools WHERE user_id=?", (user_id,), fetch="one")
