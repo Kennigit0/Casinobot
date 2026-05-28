@@ -2,6 +2,10 @@
 import random, time, threading
 from telebot import types
 import database as db
+try:
+    import bounty as bounty_mod
+except ImportError:
+    bounty_mod = None
 from config import Config
 
 _bot = None
@@ -748,6 +752,8 @@ def cmd_rob(message):
         db.update_chips(robber_id, stolen)
         msg = random.choice(ROB_WIN).format(name=victim_user.first_name, amt=fmt(stolen))
         _bot.reply_to(message, f"{msg}\n💰 Your wallet: *{fmt(db.get_player(robber_id)['chips'])}*")
+        if bounty_mod:
+            bounty_mod.check_and_pay_bounty(robber_id, victim_user.id, message.chat.id)
     else:
         # Fine = 10% of robber's wallet
         fine = max(100, int(robber["chips"] * 0.10))

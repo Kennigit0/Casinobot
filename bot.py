@@ -13,6 +13,8 @@ import activities
 import heist_v2
 import gems
 import minigames
+import lottery
+import bounty
 from config import Config
 from games import slots, dice, roulette, blackjack
 
@@ -107,7 +109,10 @@ def cmd_help(message):
 
         "🔫 *Street*\n"
         "/rob — Reply to someone to rob them *(2hr)*\n"
-        "/gift `[amount]` — Reply to gift chips\n\n"
+        "/gift `[amount]` — Reply to gift chips\n"
+        "/lottery — 🎟️ Daily jackpot lottery\n"
+        "/bounty @user [amount] — 🎯 Place a bounty\n"
+        "/mybounty — Check bounties on you\n\n"
 
         "💍 *Social*\n"
         "/marry — Reply to propose\n"
@@ -678,5 +683,9 @@ if __name__ == "__main__":
     print("✅ Minigames loaded")
     minigames.register_minigames(bot)
     print("✅ Minigames loaded")
+    lottery.register_lottery(bot)
+    print("✅ Lottery loaded")
+    bounty.register_bounty(bot)
+    print("✅ Bounty loaded")
     print("🤖 Bot polling...")
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
