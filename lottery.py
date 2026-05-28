@@ -52,7 +52,7 @@ def init_lottery_db():
 # ── Jackpot helpers ───────────────────────────────────────────────────
 def get_jackpot():
     row = db.execute("SELECT value FROM lottery_state WHERE key='jackpot'", fetch="one")
-    return int(row[0]) if row else MIN_JACKPOT
+    return int(row["value"] if isinstance(row, dict) else row[0]) if row else MIN_JACKPOT
 
 def add_to_jackpot(amount):
     db.execute("""
@@ -73,7 +73,7 @@ def get_tickets_today(user_id):
         "SELECT tickets FROM lottery_tickets WHERE user_id=? AND draw_date=?",
         (user_id, today), fetch="one"
     )
-    return row[0] if row else 0
+    return (row["tickets"] if isinstance(row, dict) else row[0]) if row else 0
 
 def buy_tickets(user_id, count):
     today = get_draw_date()
@@ -87,8 +87,10 @@ def get_all_tickets_today():
     rows = db.execute(
         "SELECT user_id, tickets FROM lottery_tickets WHERE draw_date=?",
         (today,), fetch="all"
-    )
-    return rows or []
+    ) or []
+    # Normalize: PostgreSQL returns dicts, SQLite returns tuples
+    return [(r["user_id"] if isinstance(r, dict) else r[0],
+             r["tickets"]  if isinstance(r, dict) else r[1]) for r in rows]
 
 def get_total_tickets_today():
     rows = get_all_tickets_today()
