@@ -221,6 +221,8 @@ WALLET_MAX = 999_999_999
 
 def update_chips(user_id, amount):
     execute("UPDATE players SET chips=GREATEST(LEAST(chips+?, ?), 0) WHERE user_id=?", (amount, WALLET_MAX, user_id))
+    if amount > 0:
+        execute("UPDATE players SET total_earned=COALESCE(total_earned,0)+? WHERE user_id=?", (amount, user_id))
     p = get_player(user_id)
     return p["chips"] if p else 0
 

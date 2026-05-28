@@ -247,37 +247,37 @@ def register_gems(bot_instance):
     """)
     # Add gems column
     try:
-        db.execute("ALTER TABLE players ADD COLUMN gems INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS gems INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN best_streak INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS best_streak INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN total_earned BIGINT DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS total_earned BIGINT DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN trivia_wins INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS trivia_wins INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN minigame_wins INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS minigame_wins INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN slots_played INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS slots_played INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN bj_wins INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS bj_wins INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN max_bet INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS max_bet INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN fish_count INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS fish_count INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN mine_count INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS mine_count INTEGER DEFAULT 0")
     except: pass
     try:
-        db.execute("ALTER TABLE players ADD COLUMN farm_count INTEGER DEFAULT 0")
+        db.execute("ALTER TABLE players ADD COLUMN IF NOT EXISTS farm_count INTEGER DEFAULT 0")
     except: pass
 
     bot_instance.register_callback_query_handler(cb_ach_page, func=lambda c: c.data.startswith('ach_page_') or c.data == 'ach_noop')
