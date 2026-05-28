@@ -80,10 +80,12 @@ def cmd_fish(message):
 
     # Give 10 items immediately
     rare_chance = tool.get("rare", 0.05)
+    bonus       = tool.get("bonus", 0.0)
     catches = []
     total   = 0
     for _ in range(10):
-        item_name, chips = pick_catch(rare_chance, COMMON_FISH, RARE_FISH, EPIC_FISH)
+        item_name, base_chips = pick_catch(rare_chance, COMMON_FISH, RARE_FISH, EPIC_FISH)
+        chips = int(base_chips * (1 + bonus))
         catches.append((item_name, chips))
         total += chips
 
@@ -123,10 +125,12 @@ def cmd_mine(message):
         _bot.reply_to(message, f"⛏️ Already mined recently!\n{msg}"); return
 
     rare_chance = tool.get("rare", 0.05)
+    bonus       = tool.get("bonus", 0.0)
     finds = []
     total = 0
     for _ in range(10):
-        item_name, chips = pick_catch(rare_chance, COMMON_ORES, RARE_ORES, EPIC_ORES)
+        item_name, base_chips = pick_catch(rare_chance, COMMON_ORES, RARE_ORES, EPIC_ORES)
+        chips = int(base_chips * (1 + bonus))
         finds.append((item_name, chips))
         total += chips
 

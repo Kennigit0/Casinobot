@@ -246,7 +246,17 @@ def handle_bank_callbacks(call):
             for item_id, info in items.items():
                 have = item_id in owned
                 status = "✅ Owned" if have else f"{info['price']:,} chips"
-                lines.append(f"{'✅' if have else '▫️'} *{info['name']}* — {status}\n_{info.get('desc','')}_ (+{info.get('bonus',0)}% yield)")
+                bonus_pct = int(info.get("bonus", 0) * 100)
+                rare_pct  = int(info.get("rare",  0) * 100)
+                if bonus_pct > 0 and rare_pct > 0:
+                    stat = f"+{bonus_pct}% yield | {rare_pct}% rare"
+                elif bonus_pct > 0:
+                    stat = f"+{bonus_pct}% yield"
+                elif rare_pct > 0:
+                    stat = f"{rare_pct}% rare chance"
+                else:
+                    stat = "starter tool"
+                lines.append(f"{'✅' if have else '▫️'} *{info['name']}* — {status}\n_({stat})_")
                 if not have:
                     btns.append([_btn(f"Buy {info['name']} — {info['price']:,}", f"buy_{item_id}")])
                 else:
@@ -1047,16 +1057,32 @@ def cmd_profile(message):
     bank_info  = db.BANK_LEVELS[bank_lvl]
     bank_limit = bank_info["limit"]
     bank_pct   = f"{bank/bank_limit*100:.1f}%" if bank_limit < 999_999_999 else "MAX"
+    # Activity stats
+    total_earned  = p.get("total_earned") or 0
+    slots_played  = p.get("slots_played") or 0
+    bj_wins       = p.get("bj_wins") or 0
+    best_streak   = p.get("best_streak") or 0
+    fish_count    = p.get("fish_count") or 0
+    mine_count    = p.get("mine_count") or 0
+    farm_count    = p.get("farm_count") or 0
+    gems          = p.get("gems") or 0
+
+    # Favorite activity
+    activities = {"🎰 Slots": slots_played, "🎣 Fishing": fish_count, "⛏️ Mining": mine_count, "🌾 Farming": farm_count}
+    fav = max(activities, key=activities.get) if any(activities.values()) else "None yet"
+
     _bot.reply_to(message,
-        f"👤 *{p['first_name']}'s Profile*\n\n"
+        f"👤 *{p['first_name']}\'s Profile*\n\n"
         f"🏅 Status: {vip_tag}\n"
         f"⭐ Level: *{level}* — {title}\n"
-        f"✨ XP: *{fmt(xp)}*\n"
+        f"✨ XP: *{fmt(xp)}*{married}\n\n"
         f"👛 Wallet: *{fmt(p['chips'])}* chips\n"
         f"🏦 Bank: *{fmt(bank)}* / *{fmt(bank_limit)}* ({bank_pct})\n"
-        f"🏦 Bank Tier: *{bank_info['name']}* Lv.{bank_lvl}\n"
-        f"💰 Total: *{fmt(p['chips'] + bank)}* chips\n\n"
-        f"🎮 Games Played: *{total_g}*\n"
+        f"💰 Total wealth: *{fmt(p['chips'] + bank)}* chips\n"
+        f"💎 Gems: *{gems}*\n\n"
+        f"🎮 Games played: *{total_g}* | Win rate: *{ratio}*\n"
         f"✅ Wins: *{wins}*  ❌ Losses: *{losses}*\n"
-        f"📊 Win Rate: *{ratio}*"
-        f"{married}")
+        f"🃏 BJ wins: *{bj_wins}*  🔥 Best streak: *{best_streak}*\n\n"
+        f"🌾 Activities — 🎣 *{fish_count}*  ⛏️ *{mine_count}*  🌾 *{farm_count}*\n"
+        f"⭐ Fav activity: *{fav}*\n"
+        f"💵 Total earned: *{fmt(total_earned)}* chips")

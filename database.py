@@ -190,7 +190,7 @@ def init_db():
             ("wins","INTEGER DEFAULT 0"),
             ("losses","INTEGER DEFAULT 0"),
             ("bank_level","INTEGER DEFAULT 0")]:
-            try: cur.execute(f"ALTER TABLE players ADD COLUMN {col} {defn}")
+            try: cur.execute(f"ALTER TABLE players ADD COLUMN IF NOT EXISTS {col} {defn}")
             except: pass
     conn.commit()
     conn.close()

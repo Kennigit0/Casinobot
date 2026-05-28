@@ -17,22 +17,22 @@ class Config:
 
     # Tool prices (new 3x prices)
     FISHING_TOOLS = {
-        "wooden_rod":     {"name": "🪵 Wooden Rod",      "price": 0,         "wait": 30, "rare": 0.05, "level": 5},
-        "basic_rod":      {"name": "🎣 Basic Rod",        "price": 15000,     "wait": 25, "rare": 0.10, "level": 10},
-        "silver_rod":     {"name": "🥈 Silver Rod",       "price": 75000,     "wait": 20, "rare": 0.20, "level": 20},
-        "golden_rod":     {"name": "🥇 Golden Rod",       "price": 300000,    "wait": 15, "rare": 0.35, "level": 30},
-        "diamond_rod":    {"name": "💎 Diamond Rod",      "price": 1500000,   "wait": 10, "rare": 0.55, "level": 40},
-        "magic_rod":      {"name": "🔮 Magic Rod",        "price": 6000000,   "wait": 7,  "rare": 0.75, "level": 50},
-        "legendary_rod":  {"name": "⭐ Legendary Rod",    "price": 30000000,  "wait": 5,  "rare": 0.90, "level": 75},
+        "wooden_rod":     {"name": "🪵 Wooden Rod",      "price": 0,         "wait": 30, "rare": 0.05, "bonus": 0.00, "level": 5},
+        "basic_rod":      {"name": "🎣 Basic Rod",        "price": 15000,     "wait": 25, "rare": 0.10, "bonus": 0.10, "level": 10},
+        "silver_rod":     {"name": "🥈 Silver Rod",       "price": 75000,     "wait": 20, "rare": 0.20, "bonus": 0.25, "level": 20},
+        "golden_rod":     {"name": "🥇 Golden Rod",       "price": 300000,    "wait": 15, "rare": 0.35, "bonus": 0.50, "level": 30},
+        "diamond_rod":    {"name": "💎 Diamond Rod",      "price": 1500000,   "wait": 10, "rare": 0.55, "bonus": 0.75, "level": 40},
+        "magic_rod":      {"name": "🔮 Magic Rod",        "price": 6000000,   "wait": 7,  "rare": 0.75, "bonus": 1.00, "level": 50},
+        "legendary_rod":  {"name": "⭐ Legendary Rod",    "price": 30000000,  "wait": 5,  "rare": 0.90, "bonus": 2.00, "level": 75},
     }
     MINING_TOOLS = {
-        "stone_pickaxe":     {"name": "🪨 Stone Pickaxe",      "price": 0,        "wait": 30, "rare": 0.05, "level": 10},
-        "iron_pickaxe":      {"name": "⚙️ Iron Pickaxe",       "price": 15000,    "wait": 25, "rare": 0.10, "level": 15},
-        "silver_pickaxe":    {"name": "🥈 Silver Pickaxe",     "price": 75000,    "wait": 20, "rare": 0.20, "level": 20},
-        "gold_pickaxe":      {"name": "🥇 Gold Pickaxe",       "price": 300000,   "wait": 15, "rare": 0.35, "level": 30},
-        "diamond_pickaxe":   {"name": "💎 Diamond Pickaxe",    "price": 1500000,  "wait": 10, "rare": 0.55, "level": 40},
-        "enchanted_pickaxe": {"name": "🔮 Enchanted Pickaxe",  "price": 6000000,  "wait": 7,  "rare": 0.75, "level": 50},
-        "legendary_pickaxe": {"name": "⭐ Legendary Pickaxe",  "price": 30000000, "wait": 5,  "rare": 0.90, "level": 75},
+        "stone_pickaxe":     {"name": "🪨 Stone Pickaxe",      "price": 0,        "wait": 30, "rare": 0.05, "bonus": 0.00, "level": 10},
+        "iron_pickaxe":      {"name": "⚙️ Iron Pickaxe",       "price": 15000,    "wait": 25, "rare": 0.10, "bonus": 0.10, "level": 15},
+        "silver_pickaxe":    {"name": "🥈 Silver Pickaxe",     "price": 75000,    "wait": 20, "rare": 0.20, "bonus": 0.25, "level": 20},
+        "gold_pickaxe":      {"name": "🥇 Gold Pickaxe",       "price": 300000,   "wait": 15, "rare": 0.35, "bonus": 0.50, "level": 30},
+        "diamond_pickaxe":   {"name": "💎 Diamond Pickaxe",    "price": 1500000,  "wait": 10, "rare": 0.55, "bonus": 0.75, "level": 40},
+        "enchanted_pickaxe": {"name": "🔮 Enchanted Pickaxe",  "price": 6000000,  "wait": 7,  "rare": 0.75, "bonus": 1.00, "level": 50},
+        "legendary_pickaxe": {"name": "⭐ Legendary Pickaxe",  "price": 30000000, "wait": 5,  "rare": 0.90, "bonus": 2.00, "level": 75},
     }
     FARMING_TOOLS = {
         "bare_hands":        {"name": "🤲 Bare Hands",        "price": 0,        "wait": 30, "bonus": 0.0,  "level": 15},
