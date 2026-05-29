@@ -348,30 +348,47 @@ def handle_bank_callbacks(call):
 
 
 def cmd_announce(message):
+    import time
     uid = message.from_user.id
     from config import Config
     if uid not in Config.ADMIN_IDS:
         _bot.reply_to(message, "❌ Admins only!"); return
     args = message.text.split(None, 1)
     if len(args) < 2:
-        _bot.reply_to(message, "Usage: /announce [your message]"); return
+        _bot.reply_to(message,
+            "Usage: `/announce Your message here`\n\n"
+            "Supports bold with *text*, newlines with \\n"); return
     text = args[1]
-    sent = 0
-    failed = 0
-    # Send to all groups
-    for chat_id in db.get_all_groups():
+    # Format like a proper broadcast
+    broadcast_msg = (
+        f"📣 *Broadcast*\n"
+        f"{'─' * 20}\n\n"
+        f"{text}\n\n"
+        f"{'─' * 20}\n"
+        f"_— Kenni\'s Casino_"
+    )
+    sent = failed = 0
+    status_msg = _bot.reply_to(message, "📤 Sending broadcast...")
+    # DM all registered players
+    players = db.execute("SELECT DISTINCT user_id FROM players", fetch="all") or []
+    for row in players:
+        uid2 = row["user_id"] if isinstance(row, dict) else row[0]
         try:
-            _bot.send_message(chat_id, f"📢 *Announcement*\n\n{text}", parse_mode="Markdown")
+            _bot.send_message(uid2, broadcast_msg, parse_mode="Markdown")
             sent += 1
         except: failed += 1
-    # Send DM to all registered players
-    players = db.execute("SELECT DISTINCT user_id FROM players", fetch=True)
-    for p in players:
+        time.sleep(0.05)  # avoid flood limits
+    # Also send to all saved groups
+    for chat_id in db.get_groups():
         try:
-            _bot.send_message(p["user_id"], f"📢 *Announcement*\n\n{text}", parse_mode="Markdown")
+            _bot.send_message(chat_id, broadcast_msg, parse_mode="Markdown")
             sent += 1
         except: failed += 1
-    _bot.reply_to(message, f"✅ Sent: {sent}\n❌ Failed: {failed} (players who never DMed bot)")
+    _bot.edit_message_text(
+        f"✅ Broadcast complete!\n\n"
+        f"📨 Sent: *{sent}*\n"
+        f"❌ Failed: *{failed}* (players who never DM'd bot)",
+        message.chat.id, status_msg.message_id, parse_mode="Markdown")
 
 def _auto_save_group(message):
     if message.chat.type in ("group", "supergroup"):
