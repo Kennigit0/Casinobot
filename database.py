@@ -208,6 +208,17 @@ def add_xp(user_id, amount):
     return new_level, new_xp
 
 # ── Players ───────────────────────────────────────────────────────────
+
+def save_group(chat_id):
+    """Save group chat_id so lottery/announcements can reach it"""
+    existing = execute("SELECT chat_id FROM groups WHERE chat_id=?", (chat_id,), fetch="one")
+    if not existing:
+        execute("INSERT INTO groups (chat_id) VALUES (?)", (chat_id,))
+
+def get_groups():
+    rows = execute("SELECT chat_id FROM groups", fetch="all") or []
+    return [r["chat_id"] if isinstance(r, dict) else r[0] for r in rows]
+
 def get_player(user_id):
     return execute("SELECT * FROM players WHERE user_id=?", (user_id,), fetch="one")
 

@@ -688,6 +688,7 @@ if __name__ == "__main__":
     crash.register_crash(bot)
     print("✅ Crash loaded")
     bot.register_message_handler(lottery.cmd_lastlottery, commands=["lastlottery", "lastwinner"])
+    bot.register_message_handler(lottery.cmd_drawlottery, commands=["drawlottery"])
     bounty.register_bounty(bot)
     print("✅ Bounty loaded")
     print("🤖 Bot polling...")

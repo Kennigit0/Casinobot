@@ -243,18 +243,18 @@ def run_draw():
         f"🍀 Odds: *{winner_tickets/total_tickets*100:.1f}%*\n\n"
         f"🎟️ New lottery starting now! /lottery"
     )
-    groups = db.execute("SELECT chat_id FROM groups", fetch="all")
-    if groups:
-        for r in groups:
-            cid = _row_val(r, "chat_id", 0)
-            try: _bot.send_message(cid, msg)
-            except: pass
+    for cid in db.get_groups():
+        try: _bot.send_message(cid, msg)
+        except Exception as e: print(f"Lottery announce error {cid}: {e}")
 
     reset_jackpot()
     # Save last winner
-    db.execute("UPDATE lottery_state SET value=? WHERE key='last_winner'", (f"{winner_name}|{jackpot}|{datetime.utcnow().strftime('%Y-%m-%d')}",))
-    try: db.execute("INSERT INTO lottery_state (key,value) VALUES ('last_winner',?)", (f"{winner_name}|{jackpot}|{datetime.utcnow().strftime('%Y-%m-%d')}",))
-    except: pass
+    winner_val = f"{winner_name}|{jackpot}|{datetime.utcnow().strftime('%Y-%m-%d')}"
+    existing = db.execute("SELECT key FROM lottery_state WHERE key='last_winner'", fetch="one")
+    if existing:
+        db.execute("UPDATE lottery_state SET value=? WHERE key='last_winner'", (winner_val,))
+    else:
+        db.execute("INSERT INTO lottery_state (key,value) VALUES ('last_winner',?)", (winner_val,))
     print(f"🎰 Lottery: {winner_name} won {fmt(jackpot)} chips")
 
 # ── Scheduler ─────────────────────────────────────────────────────────
@@ -294,3 +294,15 @@ def cmd_lastlottery(message):
         f"💰 Jackpot: *{fmt(jackpot)}* chips\n"
         f"📅 Date: *{date}* (UTC)\n\n"
         f"🎟️ Buy tickets for today\'s draw: /lottery")
+
+def cmd_drawlottery(message):
+    """Admin only - manually trigger lottery draw"""
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admin only!"); return
+    _bot.reply_to(message, "🎰 Running lottery draw now...")
+    try:
+        run_draw()
+        _bot.reply_to(message, "✅ Draw complete! Check /lastlottery")
+    except Exception as e:
+        _bot.reply_to(message, f"❌ Draw error: {e}")
