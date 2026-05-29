@@ -556,6 +556,10 @@ def send_bj_board(gid, chat_id, message_id, game):
     board = blackjack.game_board(game, hide_dealer=game["state"] != "done")
     cp    = blackjack.current_player(game)
     if game["state"] == "done":
+        # Delete game FIRST to prevent double payout from concurrent callbacks
+        deleted = db.delete_bj_game(gid)
+        if not deleted:
+            return  # already paid out by another callback
         results = blackjack.resolve(game)
         lines   = [board, "\n\n🏁 *Results:*"]
         for r in results:
@@ -570,7 +574,6 @@ def send_bj_board(gid, chat_id, message_id, game):
             lines.append(f"• *{r['name']}*: {r['result']} ({sign}{fmt(r['chips'])})")
         text   = "\n".join(lines)
         markup = None
-        db.delete_bj_game(gid)
     elif cp:
         markup = types.InlineKeyboardMarkup()
         markup.add(

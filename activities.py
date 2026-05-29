@@ -306,8 +306,6 @@ def cmd_inventory(message):
             lines.append(f"  {Config.FARMING_TOOLS[key]['name']}{eq}")
     _bot.reply_to(message, "\n".join(lines))
 
-# ── Rbet ─────────────────────────────────────────────────────────────
-""activities.py — Fishing, Mining, Farming, Shop, Inventory, Rbet"""
 import random
 from datetime import datetime, timedelta
 from telebot import types

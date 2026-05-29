@@ -386,7 +386,12 @@ def update_bj_game(game_id, data):
             (data.get("state","waiting"), json.dumps(data), game_id))
 
 def delete_bj_game(game_id):
+    """Returns True if deleted, False if already gone (prevents double payout)"""
+    existing = execute("SELECT game_id FROM bj_games WHERE game_id=?", (game_id,), fetch="one")
+    if not existing:
+        return False
     execute("DELETE FROM bj_games WHERE game_id=?", (game_id,))
+    return True
 
 # ── Dice ──────────────────────────────────────────────────────────────
 def save_dice(challenge_id, chat_id, challenger, challenged, bet):
