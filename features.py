@@ -134,7 +134,6 @@ def cmd_games(message):
     markup = _markup(
         [_btn("🎰 Slots",     "game_slots"), _btn("🎲 Dice",  "game_dice")],
         [_btn("🃏 Blackjack", "game_bj"),    _btn("🎡 Roulette","game_rl")],
-        [_btn("🎲 Risk Bet",  "game_rbet")],
     )
     _bot.reply_to(message,
         "🎮 *Casino Games*\n\nPick a game — then send your bet amount!\n"
@@ -343,7 +342,6 @@ def handle_bank_callbacks(call):
             "dice":   "🎲 `/dice even 500` or `/dice odd 500` or `/dice high 500`",
             "bj":     "🃏 `/bj [bet]` — e.g. `/bj 1000`",
             "rl":     "🎡 `/roulette color red 500`",
-            "rbet":   "🎲 `/rbet [amount]` — risk bet game",
         }
         _bot.answer_callback_query(call.id)
         _bot.send_message(call.message.chat.id, tips.get(game, "Use the command to play!"))

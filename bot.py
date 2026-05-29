@@ -14,6 +14,7 @@ import heist_v2
 import gems
 import minigames
 import lottery
+import crash
 import bounty
 from config import Config
 from games import slots, dice, roulette, blackjack
@@ -73,7 +74,7 @@ def cb_age(call):
     bot.edit_message_text(
         f"✅ *Welcome, {name(call.from_user)}!*\n\n"
         f"🎁 You received *{fmt(Config.STARTING_CHIPS)}* starting chips!\n\n"
-        "🎮 *Games:* /slots /dice /bj /roulette /rbet\n"
+        "🎮 *Games:* /slots /dice /bj /roulette /crash\n"
         "💰 *Economy:* /balance /daily /bank /work /crime\n"
         "👥 *Social:* /marry /gift /rob /profile\n"
         "🎣 *Activities:* /fish /mine /farm *(unlock by leveling up!)*\n\n"
@@ -132,8 +133,7 @@ def cmd_help(message):
         "/dice `[type] [bet]` — 🎲 Dice roll animation\n"
         "/bj `[bet]` — 🃏 Multiplayer blackjack\n"
         "/roulette `[type] [value] [bet]` — 🎡 Roulette\n"
-        "/rbet `[amount]` — 🎲 Risk bet game\n"
-        "/rtake — 💰 Cash out from rbet\n\n"
+        "/crash — 🚀 Multiplayer crash game\n\n"
 
         "*🎲 Dice types:*\n"
         "`/dice even 1000` `/dice odd 1000`\n"
@@ -685,6 +685,9 @@ if __name__ == "__main__":
     print("✅ Minigames loaded")
     lottery.register_lottery(bot)
     print("✅ Lottery loaded")
+    crash.register_crash(bot)
+    print("✅ Crash loaded")
+    bot.register_message_handler(lottery.cmd_lastlottery, commands=["lastlottery", "lastwinner"])
     bounty.register_bounty(bot)
     print("✅ Bounty loaded")
     print("🤖 Bot polling...")

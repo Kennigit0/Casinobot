@@ -251,6 +251,10 @@ def run_draw():
             except: pass
 
     reset_jackpot()
+    # Save last winner
+    db.execute("UPDATE lottery_state SET value=? WHERE key='last_winner'", (f"{winner_name}|{jackpot}|{datetime.utcnow().strftime('%Y-%m-%d')}",))
+    try: db.execute("INSERT INTO lottery_state (key,value) VALUES ('last_winner',?)", (f"{winner_name}|{jackpot}|{datetime.utcnow().strftime('%Y-%m-%d')}",))
+    except: pass
     print(f"🎰 Lottery: {winner_name} won {fmt(jackpot)} chips")
 
 # ── Scheduler ─────────────────────────────────────────────────────────
@@ -274,3 +278,19 @@ def register_lottery(bot_instance):
     bot_instance.register_message_handler(cmd_lottery, commands=["lottery"])
     bot_instance.register_callback_query_handler(
         cb_lottery, func=lambda c: c.data.startswith("lottery_"))
+
+def cmd_lastlottery(message):
+    row = db.execute("SELECT value FROM lottery_state WHERE key='last_winner'", fetch="one")
+    if not row:
+        _bot.reply_to(message, "🎟️ No lottery has been drawn yet!"); return
+    val  = _row_val(row, "value", 0)
+    parts = val.split("|")
+    if len(parts) < 3:
+        _bot.reply_to(message, "🎟️ No lottery has been drawn yet!"); return
+    name, jackpot, date = parts[0], int(parts[1]), parts[2]
+    _bot.reply_to(message,
+        f"🎰 *Last Lottery Winner*\n\n"
+        f"🏆 Winner: *{name}*\n"
+        f"💰 Jackpot: *{fmt(jackpot)}* chips\n"
+        f"📅 Date: *{date}* (UTC)\n\n"
+        f"🎟️ Buy tickets for today\'s draw: /lottery")
