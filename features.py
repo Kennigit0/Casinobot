@@ -561,6 +561,7 @@ def register_features(bot_instance):
         (["work"],                       cmd_work),
         (["crime"],                      cmd_crime),
                 (["gift"],                       cmd_gift),
+        (["gemgift","givegems"],         cmd_gemgift),
         (["marry"],                      cmd_marry),
         (["divorce"],                    cmd_divorce),
         (["profile", "me"],              cmd_profile),
@@ -999,6 +1000,42 @@ def cmd_gift(message):
         f"💰 Your balance: *{fmt(db.get_player(sender_id)['chips'])}*")
 
 # ── Marriage ──────────────────────────────────────────────────────────
+def cmd_gemgift(message):
+    uid = message.from_user.id
+    p   = db.get_player(uid)
+    if not p: _bot.reply_to(message, "❗ Register first with /start"); return
+    if not message.reply_to_message:
+        _bot.reply_to(message, "↩️ Reply to someone\'s message to gift them gems.\nUsage: `/gemgift [amount]`"); return
+
+    target_id = message.reply_to_message.from_user.id
+    if target_id == uid:
+        _bot.reply_to(message, "❌ You can\'t gift gems to yourself!"); return
+
+    args = message.text.split()
+    if len(args) < 2:
+        _bot.reply_to(message, "Usage: `/gemgift [amount]`"); return
+    try: amount = int(args[1])
+    except: _bot.reply_to(message, "❌ Invalid amount."); return
+    if amount <= 0:
+        _bot.reply_to(message, "❌ Amount must be positive."); return
+
+    import gems as gems_mod
+    my_gems = gems_mod.get_gems(uid)
+    if my_gems < amount:
+        _bot.reply_to(message, f"❌ Not enough gems! You have: *{my_gems}* 💎"); return
+
+    target_p = db.get_player(target_id)
+    if not target_p:
+        _bot.reply_to(message, "❌ That player hasn\'t registered yet."); return
+
+    gems_mod.spend_gems(uid, amount)
+    gems_mod.add_gems(target_id, amount)
+
+    tname = target_p["first_name"]
+    _bot.reply_to(message,
+        f"💎 Gifted *{amount}* gems to *{tname}*!\n"
+        f"Your remaining gems: *{my_gems - amount}*")
+
 def cmd_marry(message):
     if not message.reply_to_message:
         _bot.reply_to(message, "❗ *Reply* to the person you want to marry!"); return
