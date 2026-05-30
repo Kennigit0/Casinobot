@@ -184,8 +184,8 @@ def _bank_view(uid, chat_id, msg_id):
     limit     = db.get_bank_limit(uid)
     bank_pct  = f"{bank/limit*100:.1f}%" if limit > 0 else "0%"
     markup    = _markup(
-        [_btn("💰 Deposit", "bank_dep"), _btn("💸 Withdraw", "bank_with")],
-        [_btn("📈 Interest", "bank_int"), _btn("⬆️ Upgrade", "bank_upg")],
+        [_btn("💰 Deposit", f"bank_dep_{uid}"), _btn("💸 Withdraw", f"bank_with_{uid}")],
+        [_btn("📈 Interest", f"bank_int_{uid}"), _btn("⬆️ Upgrade", f"bank_upg_{uid}")],
     )
     try:
         _bot.edit_message_text(
@@ -218,6 +218,13 @@ def handle_bank_callbacks(call):
         _cb_processing.discard(lock)
 
 def _handle_bank_cb(call, uid, data, cid, mid, p):
+
+    # Extract and verify uid from all bank_ callbacks
+    if data.startswith("bank_") and not data.startswith("bank_upg_confirm"):
+        parts_b = data.split("_")
+        if len(parts_b) >= 3 and parts_b[-1].isdigit() and str(uid) != parts_b[-1]:
+            _bot.answer_callback_query(call.id, "❌ This is not your bank!", show_alert=True); return
+        data = "_".join(parts_b[:2])  # strip uid for matching below
 
     if data == "bank_dep":
         p2    = db.get_player(uid)
@@ -606,7 +613,7 @@ def register_features(bot_instance):
     
     bot_instance.register_callback_query_handler(
         handle_bank_callbacks,
-        func=lambda c: c.data in ['bank_dep','bank_with','bank_int','bank_upg','bank_upg_confirm','lb_chips','lb_xp']
+        func=lambda c: c.data.startswith('bank_dep') or c.data.startswith('bank_with') or c.data.startswith('bank_int') or c.data.startswith('bank_upg') or c.data in ['lb_chips','lb_xp'] or c.data.startswith('dep_') or c.data.startswith('with_')
             or c.data.startswith('shop_') or c.data.startswith('equip_') or c.data.startswith('game_') or c.data.startswith('dep_') or c.data.startswith('with_')
     )
     global _bot
@@ -699,9 +706,10 @@ def cmd_bank(message):
     info   = db.BANK_LEVELS[lvl]
     limit  = info["limit"]
     pct    = f"{bank/limit*100:.1f}%" if limit < 999_999_999 else "MAX"
+    uid2   = message.from_user.id
     markup = _markup(
-        [_btn("💰 Deposit", "bank_dep"), _btn("💸 Withdraw", "bank_with")],
-        [_btn("📈 Interest", "bank_int"), _btn("⬆️ Upgrade", "bank_upg")],
+        [_btn("💰 Deposit", f"bank_dep_{uid2}"), _btn("💸 Withdraw", f"bank_with_{uid2}")],
+        [_btn("📈 Interest", f"bank_int_{uid2}"), _btn("⬆️ Upgrade", f"bank_upg_{uid2}")],
     )
     _bot.reply_to(message,
         f"🏦 *{p['first_name']}'s Bank*\n\n"

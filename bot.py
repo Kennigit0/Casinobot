@@ -487,6 +487,7 @@ def cmd_bj(message):
         bot.reply_to(message, f"⏰ {msg}"); return
     db.set_last_game(message.from_user.id)
     uid  = message.from_user.id
+    db.update_chips(uid, -bet)  # deduct host bet immediately
     game = blackjack.new_game(uid, bet, message.chat.id)
     gid  = game["game_id"]
     blackjack.add_player(game, uid, name(message.from_user))
@@ -529,6 +530,7 @@ def cb_bj_join(call):
     bet = game["bet"]
     if p["chips"] < bet:
         bot.answer_callback_query(call.id, f"Not enough chips! Need {fmt(bet)}."); return
+    db.update_chips(uid, -bet)  # deduct joiner bet immediately
     blackjack.add_player(game, uid, name(call.from_user))
     db.save_bj_game(gid, game["chat_id"], game["message_id"], game["host_id"], bet, game)
     player_list = "\n".join(f"{i+1}. *{pl['name']}*" for i, pl in enumerate(game["players"]))
