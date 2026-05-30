@@ -295,19 +295,43 @@ def upgrade_bank(user_id):
     cost = BANK_LEVELS[lvl]["upgrade_cost"]
     if p["chips"] < cost:
         return False, f"❌ Need *{cost:,}* chips in wallet to upgrade."
-    execute("UPDATE players SET chips=chips-?, bank_level=bank_level+1 WHERE user_id=?", (cost, user_id))
+    conn2, db_type2 = get_conn()
+    cur2 = conn2.cursor()
+    q2 = "UPDATE players SET chips=chips-?, bank_level=bank_level+1 WHERE user_id=? AND chips>=?"
+    if db_type2 == "pg": q2 = q2.replace("?", "%s")
+    cur2.execute(q2, (cost, user_id, cost))
+    conn2.commit()
+    if cur2.rowcount == 0: return False, "❌ Not enough chips!"
     return True, BANK_LEVELS[lvl + 1]
 
 def bank_deposit(user_id, amount):
     p = get_player(user_id)
-    limit = get_bank_limit(user_id)
+    if not p: return False, "❌ Player not found."
+    limit        = get_bank_limit(user_id)
     current_bank = p.get("bank") or 0
+    current_chips= p.get("chips") or 0
+
     if current_bank + amount > limit:
         space = limit - current_bank
         if space <= 0:
             return False, "❌ Bank is full! Use /bankupgrade to store more."
         return False, f"❌ Only *{space:,}* space left. Deposit that or /bankupgrade."
-    execute("UPDATE players SET chips=chips-?, bank=bank+? WHERE user_id=?", (amount, amount, user_id))
+
+    if current_chips < amount:
+        return False, "❌ Not enough chips!"
+
+    # Atomic: only deduct if chips >= amount (prevents race condition)
+    conn, db_type = get_conn()
+    cur = conn.cursor()
+    query = "UPDATE players SET chips=chips-?, bank=bank+? WHERE user_id=? AND chips>=?"
+    if db_type == "pg":
+        query = query.replace("?", "%s")
+    cur.execute(query, (amount, amount, user_id, amount))
+    conn.commit()
+    affected = cur.rowcount
+
+    if affected == 0:
+        return False, "❌ Not enough chips! (concurrent request blocked)"
     return True, amount
 
 def bank_withdraw(user_id, amount):

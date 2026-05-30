@@ -583,6 +583,19 @@ def cmd_removetotal(message):
         f"💰 New wallet: *{new['chips']:,}*\n"
         f"🏦 New bank: *{(new.get('bank') or 0):,}*", parse_mode="Markdown")
 
+
+def cmd_fixwallet(message):
+    """Admin: fix any negative wallets in DB"""
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admin only!"); return
+    count = db.execute("SELECT COUNT(*) as c FROM players WHERE chips < 0", fetch="one")
+    cnt = count["c"] if isinstance(count, dict) else count[0]
+    if cnt == 0:
+        _bot.reply_to(message, "✅ No negative wallets found!"); return
+    db.execute("UPDATE players SET chips=0 WHERE chips < 0")
+    _bot.reply_to(message, f"✅ Fixed *{cnt}* negative wallet(s) — set to 0.")
+
 def register_features(bot_instance):
     
     bot_instance.register_callback_query_handler(
@@ -607,6 +620,7 @@ def register_features(bot_instance):
         (["profile", "me"],              cmd_profile),
         (["group_to_play","grouptoplay"],cmd_group_to_play),
         (["announce"],                   cmd_announce),
+        (["fixwallet"],                  cmd_fixwallet),
         (["addchips"],                   cmd_addchips),
         (["removechips"],                cmd_removechips),
         (["addgems"],                    cmd_addgems),
