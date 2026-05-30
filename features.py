@@ -168,44 +168,84 @@ def cmd_deposit(message):
         markup = _markup([_btn("Upgrade Bank", "bank_upg")])
         _bot.reply_to(message, result, reply_markup=markup)
 
+_cb_processing = set()  # spam protection
+
+def _bank_view(uid, chat_id, msg_id):
+    """Edit message back to main bank view"""
+    p2        = db.get_player(uid)
+    bank      = p2.get("bank") or 0
+    chips     = p2.get("chips") or 0
+    limit     = db.get_bank_limit(uid)
+    bank_pct  = f"{bank/limit*100:.1f}%" if limit > 0 else "0%"
+    markup    = _markup(
+        [_btn("💰 Deposit", "bank_dep"), _btn("💸 Withdraw", "bank_with")],
+        [_btn("📈 Interest", "bank_int"), _btn("⬆️ Upgrade", "bank_upg")],
+    )
+    try:
+        _bot.edit_message_text(
+            f"🏦 *{p2['first_name']}'s Bank*\n\n"
+            f"👛 Wallet: *{fmt(chips)}* chips\n"
+            f"🏦 Bank: *{fmt(bank)}* / *{fmt(limit)}* ({bank_pct})\n"
+            f"💰 Total: *{fmt(chips + bank)}* chips\n\n"
+            f"🔒 Banked chips are *safe from robbery!*\n"
+            f"📈 Earn *3% daily interest* with /interest",
+            chat_id, msg_id, reply_markup=markup, parse_mode="Markdown"
+        )
+    except: pass
+
 def handle_bank_callbacks(call):
     uid  = call.from_user.id
     data = call.data
+    cid  = call.message.chat.id
+    mid  = call.message.message_id
     p    = db.get_player(uid)
     if not p: _bot.answer_callback_query(call.id, "Register first! /start"); return
 
+    # Spam protection
+    lock = f"{uid}_{data}"
+    if lock in _cb_processing:
+        _bot.answer_callback_query(call.id, "⏳ Processing..."); return
+    _cb_processing.add(lock)
+    try:
+        _handle_bank_cb(call, uid, data, cid, mid, p)
+    finally:
+        _cb_processing.discard(lock)
+
+def _handle_bank_cb(call, uid, data, cid, mid, p):
+
     if data == "bank_dep":
-        _bot.answer_callback_query(call.id)
-        p2 = db.get_player(uid)
+        p2    = db.get_player(uid)
         chips = p2["chips"]
         markup2 = _markup(
-            [_btn("1,000", "dep_1000"), _btn("5,000", "dep_5000"), _btn("10,000", "dep_10000")],
-            [_btn("25,000", "dep_25000"), _btn("50,000", "dep_50000"), _btn("All", "dep_all")],
+            [_btn("1,000", f"dep_1000_{uid}"), _btn("5,000", f"dep_5000_{uid}"), _btn("10,000", f"dep_10000_{uid}")],
+            [_btn("25,000", f"dep_25000_{uid}"), _btn("50,000", f"dep_50000_{uid}"), _btn("All", f"dep_all_{uid}")],
         )
-        _bot.send_message(call.message.chat.id,
-            f"💰 *How much to deposit?*\n👛 Wallet: *{fmt(chips)}* chips",
-            parse_mode="Markdown", reply_markup=markup2)
+        _bot.answer_callback_query(call.id)
+        try:
+            _bot.edit_message_text(
+                f"💰 *How much to deposit?*\n👛 Wallet: *{fmt(chips)}* chips",
+                cid, mid, reply_markup=markup2, parse_mode="Markdown")
+        except: pass
 
     elif data == "bank_with":
-        _bot.answer_callback_query(call.id)
-        p2 = db.get_player(uid)
+        p2   = db.get_player(uid)
         bank = p2.get("bank") or 0
         markup2 = _markup(
-            [_btn("1,000", "with_1000"), _btn("5,000", "with_5000"), _btn("10,000", "with_10000")],
-            [_btn("25,000", "with_25000"), _btn("50,000", "with_50000"), _btn("All", "with_all")],
+            [_btn("1,000", f"with_1000_{uid}"), _btn("5,000", f"with_5000_{uid}"), _btn("10,000", f"with_10000_{uid}")],
+            [_btn("25,000", f"with_25000_{uid}"), _btn("50,000", f"with_50000_{uid}"), _btn("All", f"with_all_{uid}")],
         )
-        _bot.send_message(call.message.chat.id,
-            f"💸 *How much to withdraw?*\n🏦 Bank: *{fmt(bank)}* chips",
-            parse_mode="Markdown", reply_markup=markup2)
+        _bot.answer_callback_query(call.id)
+        try:
+            _bot.edit_message_text(
+                f"💸 *How much to withdraw?*\n🏦 Bank: *{fmt(bank)}* chips",
+                cid, mid, reply_markup=markup2, parse_mode="Markdown")
+        except: pass
 
     elif data == "bank_int":
         ok, bonus, msg = db.claim_interest(uid)
         if ok:
-            _bot.answer_callback_query(call.id, f"✅ +{bonus:,} chips interest!")
-            new = db.get_player(uid)
-            _bot.send_message(call.message.chat.id,
-                f"📈 Interest claimed! +*{fmt(bonus)}* chips\n"
-                f"🏦 Bank: *{fmt(new['bank'])}*")
+            _bot.answer_callback_query(call.id, f"✅ +{bonus:,} chips interest!", show_alert=True)
+            _bank_view(uid, cid, mid)
         else:
             _bot.answer_callback_query(call.id, msg, show_alert=True)
 
@@ -216,10 +256,8 @@ def handle_bank_callbacks(call):
     elif data == "bank_upg_confirm":
         ok, result = db.upgrade_bank(uid)
         if ok:
-            _bot.answer_callback_query(call.id, f"✅ Upgraded to {result['name']}!")
-            _bot.send_message(call.message.chat.id,
-                f"✅ Bank upgraded to *{result['name']}*!\n"
-                f"🏦 New limit: *{fmt(result['limit'])}* chips")
+            _bot.answer_callback_query(call.id, f"✅ Upgraded to {result['name']}!", show_alert=True)
+            _bank_view(uid, cid, mid)
         else:
             _bot.answer_callback_query(call.id, result, show_alert=True)
 
@@ -304,36 +342,36 @@ def handle_bank_callbacks(call):
                 break
 
     elif data.startswith("dep_"):
-        amt_str = data.replace("dep_","")
-        p2  = db.get_player(uid)
-        amt = p2["chips"] if amt_str == "all" else int(amt_str)
+        parts   = data.split("_")
+        # format: dep_AMOUNT_USERID
+        if len(parts) < 3 or str(uid) != parts[-1]:
+            _bot.answer_callback_query(call.id, "❌ This is not your bank!", show_alert=True); return
+        amt_str = parts[1]
+        p2      = db.get_player(uid)
+        amt     = p2["chips"] if amt_str == "all" else int(amt_str)
         if amt <= 0 or p2["chips"] < amt:
             _bot.answer_callback_query(call.id, "❌ Not enough chips!", show_alert=True); return
         ok, result = db.bank_deposit(uid, amt)
         if ok:
-            new = db.get_player(uid)
-            _bot.answer_callback_query(call.id, f"✅ Deposited {fmt(result)} chips!")
-            _bot.send_message(call.message.chat.id,
-                f"✅ Deposited *{fmt(result)}* chips!\n"
-                f"🏦 Bank: *{fmt(new['bank'])}*\n👛 Wallet: *{fmt(new['chips'])}*",
-                parse_mode="Markdown")
+            _bot.answer_callback_query(call.id, f"✅ Deposited {fmt(result)} chips!", show_alert=True)
+            _bank_view(uid, cid, mid)
         else:
             _bot.answer_callback_query(call.id, result, show_alert=True)
 
     elif data.startswith("with_"):
-        amt_str = data.replace("with_","")
-        p2   = db.get_player(uid)
-        bank = p2.get("bank") or 0
-        amt  = bank if amt_str == "all" else int(amt_str)
+        parts   = data.split("_")
+        # format: with_AMOUNT_USERID
+        if len(parts) < 3 or str(uid) != parts[-1]:
+            _bot.answer_callback_query(call.id, "❌ This is not your bank!", show_alert=True); return
+        amt_str = parts[1]
+        p2      = db.get_player(uid)
+        bank    = p2.get("bank") or 0
+        amt     = bank if amt_str == "all" else int(amt_str)
         if amt <= 0 or bank < amt:
             _bot.answer_callback_query(call.id, "❌ Not enough in bank!", show_alert=True); return
-        db.execute("UPDATE players SET bank=bank-?, chips=chips+? WHERE user_id=?", (amt, amt, uid))
-        new = db.get_player(uid)
-        _bot.answer_callback_query(call.id, f"✅ Withdrew {fmt(amt)} chips!")
-        _bot.send_message(call.message.chat.id,
-            f"✅ Withdrew *{fmt(amt)}* chips!\n"
-            f"👛 Wallet: *{fmt(new['chips'])}*\n🏦 Bank: *{fmt(new['bank'])}*",
-            parse_mode="Markdown")
+        db.bank_withdraw(uid, amt)
+        _bot.answer_callback_query(call.id, f"✅ Withdrew {fmt(amt)} chips!", show_alert=True)
+        _bank_view(uid, cid, mid)
 
     elif data.startswith("game_"):
         game = data.replace("game_","")
