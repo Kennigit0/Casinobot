@@ -16,6 +16,7 @@ import random, threading, time
 from datetime import datetime, timedelta
 from telebot import types
 import database as db
+import gems as gems_mod
 
 _bot = None
 
@@ -27,13 +28,13 @@ def _rv(row, key, idx):
 
 # ── Clan levels ───────────────────────────────────────────────────────
 CLAN_LEVELS = {
-    1: {"name": "Rookie",    "max_members": 10,  "upgrade_cost": 500_000},
-    2: {"name": "Rising",    "max_members": 20,  "upgrade_cost": 2_000_000},
-    3: {"name": "Elite",     "max_members": 35,  "upgrade_cost": 10_000_000},
-    4: {"name": "Champion",  "max_members": 50,  "upgrade_cost": 50_000_000},
+    1: {"name": "Rookie",    "max_members": 10,  "upgrade_cost": 100},
+    2: {"name": "Rising",    "max_members": 20,  "upgrade_cost": 250},
+    3: {"name": "Elite",     "max_members": 35,  "upgrade_cost": 500},
+    4: {"name": "Champion",  "max_members": 50,  "upgrade_cost": 1000},
     5: {"name": "Legendary", "max_members": 100, "upgrade_cost": None},
 }
-CREATE_COST = 50_000
+CREATE_COST_GEMS = 50  # gems
 
 # ── DB init ───────────────────────────────────────────────────────────
 def init_clan_db():
@@ -148,7 +149,7 @@ def _clan_status(message, p):
         )
         _bot.reply_to(message,
             "⚔️ *You're not in a clan!*\n\n"
-            f"Create your own for *{fmt(CREATE_COST)}* chips\n"
+            f"Create your own for *{CREATE_COST_GEMS}* 💎 gems\n"
             "or join an existing one.\n\n"
             "`/clan create <name>` — start your clan\n"
             "`/clan join <name>` — join existing\n"
@@ -178,7 +179,7 @@ def _show_clan(message, clan, my_mem=None, edit=False, call=None):
     lname    = leader_p["first_name"] if leader_p else "Unknown"
 
     next_cost = CLAN_LEVELS.get(level+1, {}).get("upgrade_cost")
-    next_str  = f"{fmt(next_cost)} chips" if next_cost else "MAX"
+    next_str  = f"{next_cost} 💎 gems" if next_cost else "MAX"
 
     my_role = member_val(my_mem, "role") if my_mem else ""
     my_contrib = member_val(my_mem, "contribution") if my_mem else 0
@@ -226,14 +227,15 @@ def _clan_create(message, p, args):
     if not name.replace(" ","").replace("_","").replace("-","").isalnum():
         _bot.reply_to(message, "❌ Clan name can only contain letters, numbers, spaces, - and _"); return
 
-    if p["chips"] < CREATE_COST:
-        _bot.reply_to(message, f"❌ Need *{fmt(CREATE_COST)}* chips to create a clan."); return
+    player_gems = gems_mod.get_gems(uid)
+    if player_gems < CREATE_COST_GEMS:
+        _bot.reply_to(message, f"❌ Need *{CREATE_COST_GEMS}* 💎 gems to create a clan.\nYou have: *{player_gems}* gems."); return
 
     existing = get_clan_by_name(name)
     if existing:
         _bot.reply_to(message, f"❌ A clan named *{name}* already exists!"); return
 
-    db.update_chips(uid, -CREATE_COST)
+    gems_mod.spend_gems(uid, CREATE_COST_GEMS)
     now = datetime.utcnow().isoformat()
     db.execute(
         "INSERT INTO clans (name, leader_id, created_at) VALUES (?,?,?)",
@@ -247,7 +249,7 @@ def _clan_create(message, p, args):
     )
     _bot.reply_to(message,
         f"⚔️ *Clan '{name}' created!*\n\n"
-        f"💸 Paid: *{fmt(CREATE_COST)}* chips\n"
+        f"💎 Paid: *{CREATE_COST_GEMS}* gems\n"
         f"👥 Max members: *10* (upgrade to increase)\n\n"
         f"Invite players with: `/clan join {name}`\n"
         f"Set description: `/clan desc <text>`\n"
@@ -449,21 +451,22 @@ def _clan_upgrade(message, p):
     if level >= 5:
         _bot.reply_to(message, "🏆 Clan is already at max level!"); return
 
-    next_info = CLAN_LEVELS[level + 1]
-    cost      = CLAN_LEVELS[level]["upgrade_cost"]
+    next_info   = CLAN_LEVELS[level + 1]
+    cost        = CLAN_LEVELS[level]["upgrade_cost"]
+    leader_gems = gems_mod.get_gems(uid)
 
-    if bank < cost:
+    if leader_gems < cost:
         _bot.reply_to(message,
-            f"❌ Clan bank needs *{fmt(cost)}* chips to upgrade.\n"
-            f"Currently: *{fmt(bank)}* chips.\n"
-            f"Need *{fmt(cost - bank)}* more chips."); return
+            f"❌ Need *{cost}* 💎 gems to upgrade.\n"
+            f"You have: *{leader_gems}* gems."); return
 
-    db.execute("UPDATE clans SET bank=bank-?, level=level+1 WHERE id=?", (cost, clan_id))
+    gems_mod.spend_gems(uid, cost)
+    db.execute("UPDATE clans SET level=level+1 WHERE id=?", (clan_id,))
     _bot.reply_to(message,
         f"⬆️ *Clan upgraded to Level {level+1}!*\n\n"
         f"🏅 Tier: *{next_info['name']}*\n"
         f"👥 Max members: *{next_info['max_members']}*\n"
-        f"💸 Cost: *{fmt(cost)}* chips from clan bank")
+        f"💎 Cost: *{cost}* gems (paid by leader)")
 
 def _clan_heist(message, p):
     uid     = message.from_user.id
@@ -627,14 +630,17 @@ def cb_clan(call):
         cost  = CLAN_LEVELS[level].get("upgrade_cost")
         if not cost:
             _bot.send_message(call.message.chat.id, "Already max level!"); return
-        if bank < cost:
+        leader_gems = gems_mod.get_gems(uid)
+        if leader_gems < cost:
             _bot.send_message(call.message.chat.id,
-                f"❌ Need *{fmt(cost)}* chips in clan bank.\nCurrently: *{fmt(bank)}*"); return
-        db.execute("UPDATE clans SET bank=bank-?, level=level+1 WHERE id=?", (cost, clan_id))
+                f"❌ Need *{cost}* 💎 gems to upgrade.\nYou have: *{leader_gems}* gems."); return
+        gems_mod.spend_gems(uid, cost)
+        db.execute("UPDATE clans SET level=level+1 WHERE id=?", (clan_id,))
         next_info = CLAN_LEVELS[level+1]
         _bot.send_message(call.message.chat.id,
             f"⬆️ *Upgraded to Level {level+1} — {next_info['name']}!*\n"
-            f"👥 Max members: *{next_info['max_members']}*")
+            f"👥 Max members: *{next_info['max_members']}*\n"
+            f"💎 Cost: *{cost}* gems")
 
 # ── Register ──────────────────────────────────────────────────────────
 def register_clan(bot_instance):
