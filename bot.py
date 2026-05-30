@@ -300,11 +300,15 @@ def cmd_slots(message):
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
         bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*."); return
-    # Block if player already has open table
+    # Block if player already has pending table
     for gid, g in pending_bj.items():
         if g.get("host_id") == message.from_user.id:
             bot.reply_to(message, "❌ You already have an open table! Start it or wait for it to expire.", parse_mode="Markdown")
             return
+    # Block if player has an active running game in DB
+    if db.has_active_bj_game(message.from_user.id):
+        bot.reply_to(message, "❌ You already have a game in progress! Finish it first.", parse_mode="Markdown")
+        return
     ok, msg = db.can_play_game(message.from_user.id)
     if not ok:
         bot.reply_to(message, f"⏰ {msg}"); return
@@ -363,11 +367,15 @@ def cmd_dice(message):
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
         bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*."); return
-    # Block if player already has open table
+    # Block if player already has pending table
     for gid, g in pending_bj.items():
         if g.get("host_id") == message.from_user.id:
             bot.reply_to(message, "❌ You already have an open table! Start it or wait for it to expire.", parse_mode="Markdown")
             return
+    # Block if player has an active running game in DB
+    if db.has_active_bj_game(message.from_user.id):
+        bot.reply_to(message, "❌ You already have a game in progress! Finish it first.", parse_mode="Markdown")
+        return
     ok, msg = db.can_play_game(message.from_user.id)
     if not ok:
         bot.reply_to(message, f"⏰ {msg}"); return
@@ -430,11 +438,15 @@ def cmd_roulette(message):
             if n < 0 or n > 36: raise ValueError
         except ValueError:
             bot.reply_to(message, "❌ Number must be 0–36."); return
-    # Block if player already has open table
+    # Block if player already has pending table
     for gid, g in pending_bj.items():
         if g.get("host_id") == message.from_user.id:
             bot.reply_to(message, "❌ You already have an open table! Start it or wait for it to expire.", parse_mode="Markdown")
             return
+    # Block if player has an active running game in DB
+    if db.has_active_bj_game(message.from_user.id):
+        bot.reply_to(message, "❌ You already have a game in progress! Finish it first.", parse_mode="Markdown")
+        return
     ok, msg = db.can_play_game(message.from_user.id)
     if not ok:
         bot.reply_to(message, f"⏰ {msg}"); return
@@ -477,11 +489,15 @@ def cmd_bj(message):
         bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips *(15% of balance)*"); return
     if p["chips"] < bet:
         bot.reply_to(message, f"❌ Not enough chips! You have *{fmt(p['chips'])}*."); return
-    # Block if player already has open table
+    # Block if player already has pending table
     for gid, g in pending_bj.items():
         if g.get("host_id") == message.from_user.id:
             bot.reply_to(message, "❌ You already have an open table! Start it or wait for it to expire.", parse_mode="Markdown")
             return
+    # Block if player has an active running game in DB
+    if db.has_active_bj_game(message.from_user.id):
+        bot.reply_to(message, "❌ You already have a game in progress! Finish it first.", parse_mode="Markdown")
+        return
     ok, msg = db.can_play_game(message.from_user.id)
     if not ok:
         bot.reply_to(message, f"⏰ {msg}"); return

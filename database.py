@@ -394,6 +394,12 @@ def divorce(u1, u2):
     execute("UPDATE players SET married_to=0 WHERE user_id=?", (u2,))
 
 # ── Blackjack ─────────────────────────────────────────────────────────
+def has_active_bj_game(user_id):
+    """Check if player has any active BJ game in DB"""
+    row = execute("SELECT game_id FROM bj_games WHERE host_id=? OR data LIKE ?",
+                  (user_id, f'%"uid": {user_id}%'), fetch="one")
+    return row is not None
+
 def save_bj_game(game_id, chat_id, message_id, host_id, bet, data):
     execute("""INSERT INTO bj_games (game_id,chat_id,message_id,host_id,bet,state,data)
                VALUES (?,?,?,?,?,?,?) ON CONFLICT (game_id) DO UPDATE SET state=EXCLUDED.state, data=EXCLUDED.data""",
