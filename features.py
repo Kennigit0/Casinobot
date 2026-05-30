@@ -272,11 +272,12 @@ def _handle_bank_cb(call, uid, data, cid, mid, p):
     elif data.startswith("shop_"):
         cat = data.replace("shop_","")
         _bot.answer_callback_query(call.id)
+        # edit message with shop items
         from config import Config
         cat_map = {'fishing': Config.FISHING_TOOLS, 'mining': Config.MINING_TOOLS, 'farming': Config.FARMING_TOOLS}
         items = cat_map.get(cat, {})
         if not items:
-            _bot.send_message(call.message.chat.id, "❌ No items found.")
+            _bot.answer_callback_query(call.id, "❌ No items found!", show_alert=True)
         else:
             p2   = db.get_player(uid)
             owned = db.get_player_tools(uid).get("owned_tools", [])
@@ -303,7 +304,10 @@ def _handle_bank_cb(call, uid, data, cid, mid, p):
                 else:
                     btns.append([_btn(f"Equip {info['name']}", f"equip_{item_id}")])
             markup2 = _markup(*btns) if btns else None
-            _bot.send_message(call.message.chat.id, "\n".join(lines), reply_markup=markup2, parse_mode="Markdown")
+            try:
+                _bot.edit_message_text("\n".join(lines), cid, mid, reply_markup=markup2, parse_mode="Markdown")
+            except:
+                _bot.send_message(cid, "\n".join(lines), reply_markup=markup2, parse_mode="Markdown")
 
     elif data.startswith("buy_"):
         item_id = data.replace("buy_","")
@@ -322,11 +326,11 @@ def _handle_bank_cb(call, uid, data, cid, mid, p):
                     _bot.answer_callback_query(call.id, f"Need {info['price']:,} chips!", show_alert=True); break
                 db.update_chips(uid, -info["price"])
                 db.save_tool_purchase(uid, item_id)
-                _bot.answer_callback_query(call.id, f"✅ Bought {info['name']}!")
-                _bot.send_message(call.message.chat.id,
-                    f"✅ Bought *{info['name']}*!\n"
-                    f"💰 -{info['price']:,} chips\n"
-                    f"Tap Equip to use it!", reply_markup=_markup([_btn(f"Equip {info['name']}", f"equip_{item_id}")]))
+                equip_markup = _markup([_btn(f"Equip {info['name']}", f"equip_{item_id}")])
+                _bot.answer_callback_query(call.id, f"✅ Bought {info['name']}! Tap Equip below.", show_alert=True)
+                try:
+                    _bot.edit_message_reply_markup(cid, mid, reply_markup=equip_markup)
+                except: pass
                 break
 
     elif data.startswith("equip_"):
@@ -337,8 +341,7 @@ def _handle_bank_cb(call, uid, data, cid, mid, p):
             if item_id in items:
                 db.equip_tool_db(uid, item_id, cat)
                 info = items[item_id]
-                _bot.answer_callback_query(call.id, f"✅ Equipped {info['name']}!")
-                _bot.send_message(call.message.chat.id, f"✅ *{info['name']}* equipped for {cat}!")
+                _bot.answer_callback_query(call.id, f"✅ {info['name']} equipped for {cat}!", show_alert=True)
                 break
 
     elif data.startswith("dep_"):
@@ -381,8 +384,7 @@ def _handle_bank_cb(call, uid, data, cid, mid, p):
             "bj":     "🃏 `/bj [bet]` — e.g. `/bj 1000`",
             "rl":     "🎡 `/roulette color red 500`",
         }
-        _bot.answer_callback_query(call.id)
-        _bot.send_message(call.message.chat.id, tips.get(game, "Use the command to play!"))
+        _bot.answer_callback_query(call.id, tips.get(game, "Use the command to play!"), show_alert=True)
 
 
 def cmd_announce(message):

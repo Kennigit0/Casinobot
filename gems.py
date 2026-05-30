@@ -183,17 +183,43 @@ def cmd_gemshop(message):
         lines.append(f"{can} {item['name']} — *{item['cost']}* 💎\n_{item['desc']}_")
         btns.append([_types.InlineKeyboardButton(
             f"{item['name']} ({item['cost']} 💎)",
-            callback_data=f"gem_buy_{item_id}"
+            callback_data=f"gem_buy_{item_id}_{uid}"
         )])
     markup = _types.InlineKeyboardMarkup()
     for row in btns: markup.row(*row)
     _bot.reply_to(message, "\n".join(lines), parse_mode="Markdown", reply_markup=markup)
 
+_gem_processing = set()
+
 def handle_gem_callbacks(call):
     uid  = call.from_user.id
     data = call.data
     if not data.startswith("gem_buy_"): return
-    item_id = data.replace("gem_buy_", "")
+
+    # Spam protection
+    lock = f"gem_{uid}_{data}"
+    if lock in _gem_processing:
+        _bot.answer_callback_query(call.id, "⏳ Processing..."); return
+    _gem_processing.add(lock)
+
+    # uid check — only owner can use their gem shop buttons
+    parts = data.split("_")
+    if parts[-1].isdigit() and str(uid) != parts[-1]:
+        _bot.answer_callback_query(call.id, "❌ This is not your gem shop!", show_alert=True)
+        _gem_processing.discard(lock); return
+
+    item_id = "_".join(parts[2:-1]) if parts[-1].isdigit() else data.replace("gem_buy_", "")
+    item    = GEM_SHOP.get(item_id)
+    if not item:
+        _bot.answer_callback_query(call.id, "❌ Item not found!")
+        _gem_processing.discard(lock); return
+
+    try:
+        _do_gem_buy(call, uid, item_id, item)
+    finally:
+        _gem_processing.discard(lock)
+
+def _do_gem_buy(call, uid, item_id, item):
     item    = GEM_SHOP.get(item_id)
     if not item: _bot.answer_callback_query(call.id, "❌ Item not found!"); return
 
