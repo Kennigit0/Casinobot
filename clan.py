@@ -499,8 +499,7 @@ def _clan_heist(message, p):
 
     if success:
         reward_per = base_reward // count
-        db.execute("UPDATE clans SET bank=bank+?, xp=xp+? WHERE id=?",
-                   (base_reward, 50 * count, clan_id))
+        db.execute("UPDATE clans SET xp=xp+? WHERE id=?", (50 * count, clan_id))
         for m in members:
             mid = member_val(m, "user_id")
             db.update_chips(mid, reward_per)
@@ -513,7 +512,7 @@ def _clan_heist(message, p):
             f"💥 Multiplier: *{multiplier}x*",
             f"💰 Total loot: *{fmt(base_reward)}* chips",
             f"👤 Per member: *{fmt(reward_per)}* chips",
-            f"\n🎉 All members paid! Clan bank kept *{fmt(base_reward)}* too!"
+            f"\n🎉 All {count} members paid!"
         ]
         _bot.reply_to(message, "\n".join(lines))
     else:
