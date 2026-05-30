@@ -15,6 +15,7 @@ import gems
 import minigames
 import lottery
 import crash
+import clan
 import bounty
 from config import Config
 from games import slots, dice, roulette, blackjack
@@ -122,7 +123,8 @@ def cmd_help(message):
         "/gift `[amount]` — Reply to gift chips\n"
         "/lottery — 🎟️ Daily jackpot lottery\n"
         "/bounty @user [amount] — 🎯 Place a bounty\n"
-        "/mybounty — Check bounties on you\n\n"
+        "/mybounty — Check bounties on you\n"
+        "/clan — ⚔️ Clan system\n\n"
 
         "💍 *Social*\n"
         "/marry — Reply to propose\n"
@@ -699,6 +701,8 @@ if __name__ == "__main__":
     print("✅ Lottery loaded")
     crash.register_crash(bot)
     print("✅ Crash loaded")
+    clan.register_clan(bot)
+    print("✅ Clan loaded")
     bot.register_message_handler(lottery.cmd_lastlottery, commands=["lastlottery", "lastwinner"])
     bot.register_message_handler(lottery.cmd_drawlottery, commands=["drawlottery"])
     bounty.register_bounty(bot)
