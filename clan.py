@@ -118,7 +118,7 @@ def cmd_clan(message):
     if sub == "withdraw":    return _clan_withdraw(message, p, args)
     if sub == "kick":        return _clan_kick(message, p, args)
     if sub == "promote":     return _clan_promote(message, p, args)
-    if sub == "heist":       return _clan_heist(message, p)
+    if sub in ("raid","heist"): return _clan_raid(message, p)
     if sub in ("top","lb"):  return _clan_top(message)
     if sub == "upgrade":     return _clan_upgrade(message, p)
     if sub == "desc":        return _clan_desc(message, p, args)
@@ -468,63 +468,6 @@ def _clan_upgrade(message, p):
         f"👥 Max members: *{next_info['max_members']}*\n"
         f"💎 Cost: *{cost}* gems (paid by leader)")
 
-def _clan_heist(message, p):
-    uid     = message.from_user.id
-    mem     = get_member(uid)
-    if not mem:
-        _bot.reply_to(message, "❌ You need to be in a clan to do a clan heist!"); return
-
-    clan_id  = member_val(mem, "clan_id")
-    clan     = get_clan_by_id(clan_id)
-    members  = get_clan_members(clan_id)
-    count    = len(members)
-    cname    = clan_val(clan, "name")
-    bank     = clan_val(clan, "bank") or 0
-
-    # Heist cost = 10% of clan bank minimum 5000
-    heist_cost = max(5_000, int(bank * 0.10))
-    if bank < heist_cost:
-        _bot.reply_to(message,
-            f"❌ Clan bank needs at least *{fmt(heist_cost)}* chips to start a heist.\n"
-            f"Current bank: *{fmt(bank)}*\n"
-            "Ask members to `/clan deposit` first!"); return
-
-    # Calculate reward based on members and level
-    level       = clan_val(clan, "level") or 1
-    multiplier  = round(random.uniform(1.5, 4.0) * level, 2)
-    base_reward = int(heist_cost * multiplier)
-    success     = random.random() < (0.5 + level * 0.08)  # 50-90% based on level
-
-    db.execute("UPDATE clans SET bank=bank-? WHERE id=?", (heist_cost, clan_id))
-
-    if success:
-        reward_per = base_reward // count
-        db.execute("UPDATE clans SET xp=xp+? WHERE id=?", (50 * count, clan_id))
-        for m in members:
-            mid = member_val(m, "user_id")
-            db.update_chips(mid, reward_per)
-            db.add_xp(mid, 50)
-
-        lines = [
-            f"🏦 *CLAN HEIST SUCCESS!*\n",
-            f"⚔️ Clan: *{cname}*",
-            f"👥 Members: *{count}*",
-            f"💥 Multiplier: *{multiplier}x*",
-            f"💰 Total loot: *{fmt(base_reward)}* chips",
-            f"👤 Per member: *{fmt(reward_per)}* chips",
-            f"\n🎉 All {count} members paid!"
-        ]
-        _bot.reply_to(message, "\n".join(lines))
-    else:
-        lines = [
-            f"💀 *CLAN HEIST FAILED!*\n",
-            f"⚔️ Clan: *{cname}*",
-            f"👥 Members: *{count}*",
-            f"💸 Lost: *{fmt(heist_cost)}* chips from clan bank",
-            f"\nBetter luck next time! Train harder 💪"
-        ]
-        _bot.reply_to(message, "\n".join(lines))
-
 def _clan_top(message):
     rows = db.execute(
         "SELECT name, level, bank, leader_id, (SELECT COUNT(*) FROM clan_members WHERE clan_id=clans.id) as mc "
@@ -649,3 +592,370 @@ def register_clan(bot_instance):
     bot_instance.register_message_handler(cmd_clan, commands=["clan"])
     bot_instance.register_callback_query_handler(
         cb_clan, func=lambda c: c.data.startswith("clan_"))
+
+# ── Boss Raid System ──────────────────────────────────────────────────
+BOSSES = {
+    1: {"name": "👹 Goblin King",    "hp": 1000,  "min_reward": 50_000,    "max_reward": 100_000},
+    2: {"name": "🐉 Fire Drake",     "hp": 3000,  "min_reward": 200_000,   "max_reward": 500_000},
+    3: {"name": "💀 Death Knight",   "hp": 8000,  "min_reward": 1_000_000, "max_reward": 3_000_000},
+    4: {"name": "🌑 Shadow Demon",   "hp": 20000, "min_reward": 5_000_000, "max_reward": 10_000_000},
+    5: {"name": "☠️ Ancient Dragon", "hp": 50000, "min_reward": 20_000_000,"max_reward": 50_000_000},
+}
+
+RAID_JOIN_TIME  = 120   # 2 min joining phase
+RAID_ROUND_TIME = 60    # 60s per attack round
+RAID_ROUNDS     = 3
+RAID_COOLDOWN   = 86400 # 24 hours
+
+active_raids = {}  # clan_id -> raid state
+
+def get_last_raid(clan_id):
+    row = db.execute(
+        "SELECT started_at FROM clan_raids WHERE clan_id=? ORDER BY started_at DESC LIMIT 1",
+        (clan_id,), fetch="one"
+    )
+    return _rv(row, "started_at", 0) if row else None
+
+def init_raid_db():
+    is_pg = db.get_conn()[1] == "pg"
+    db.execute(f"""
+        CREATE TABLE IF NOT EXISTS clan_raids (
+            id         {"SERIAL" if is_pg else "INTEGER"} PRIMARY KEY,
+            clan_id    BIGINT NOT NULL,
+            boss_name  TEXT,
+            result     TEXT,
+            reward     BIGINT DEFAULT 0,
+            raiders    INTEGER DEFAULT 0,
+            started_at TEXT NOT NULL
+        )
+    """)
+
+def _hp_bar(current, maximum, length=12):
+    filled = max(0, int(current / maximum * length))
+    return "🟥" * filled + "⬛" * (length - filled)
+
+def _calc_damage(uid, role):
+    p = db.get_player(uid)
+    if not p: return 0
+    xp    = p.get("xp") or 0
+    level = db.xp_to_level(xp)
+    dmg   = level * 50
+    if random.random() < 0.20:
+        dmg *= 2  # crit
+    if role == "leader":   dmg = int(dmg * 1.20)
+    elif role == "officer": dmg = int(dmg * 1.10)
+    return max(50, dmg)
+
+def _render_raid(raid):
+    boss     = raid["boss"]
+    hp       = raid["hp"]
+    max_hp   = raid["max_hp"]
+    phase    = raid["phase"]
+    rnd      = raid["round"]
+    raiders  = raid["raiders"]  # uid -> {name, role, dmg_total, penalty}
+
+    bar  = _hp_bar(hp, max_hp)
+    pct  = f"{hp/max_hp*100:.1f}%"
+
+    if phase == "joining":
+        lines = [
+            f"⚔️ *CLAN BOSS RAID*\n",
+            f"{boss['name']}",
+            f"❤️ HP: *{hp:,}* / *{max_hp:,}*",
+            f"{bar} {pct}\n",
+            f"👥 Raiders joined: *{len(raiders)}*",
+            f"⏳ Joining phase — click below to join!\n",
+            f"_Raid starts when timer ends or leader is ready_"
+        ]
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("⚔️ Join Raid", callback_data="clan_raid_join"),
+            types.InlineKeyboardButton("▶️ Start Now", callback_data="clan_raid_start"),
+        )
+        return "\n".join(lines), markup
+
+    elif phase == "attacking":
+        attacked = [uid for uid, r in raiders.items() if rnd in r.get("attacked_rounds", [])]
+        lines = [
+            f"⚔️ *ROUND {rnd}/{RAID_ROUNDS}*\n",
+            f"{boss['name']}",
+            f"❤️ HP: *{hp:,}* / *{max_hp:,}*",
+            f"{bar} {pct}\n",
+            f"👥 Raiders: *{len(raiders)}* | Attacked: *{len(attacked)}*",
+            f"⏳ Attack now!"
+        ]
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("⚔️ ATTACK!", callback_data="clan_raid_attack"))
+        return "\n".join(lines), markup
+
+    elif phase == "finished":
+        won = hp <= 0
+        lines = [
+            f"{'🏆' if won else '💀'} *RAID {'VICTORY' if won else 'FAILED'}!*\n",
+            f"{boss['name']}",
+            f"❤️ HP: *{max(0,hp):,}* / *{max_hp:,}*",
+            f"{bar} {pct}\n",
+        ]
+        if won and raiders:
+            total  = raid.get("total_reward", 0)
+            per    = total // len(raiders)
+            lines += [f"💰 Total reward: *{fmt(total)}* chips",
+                      f"👤 Per raider: *{fmt(per)}* chips\n",
+                      "🎉 *Raid members paid!*"]
+        elif raiders:
+            lines.append("💸 No reward — boss survived!")
+        return "\n".join(lines), None
+
+def _run_raid(clan_id, chat_id, msg_id):
+    raid = active_raids.get(clan_id)
+    if not raid: return
+
+    # ── Joining phase ─────────────────────────────────────────────────
+    time.sleep(RAID_JOIN_TIME)
+    raid = active_raids.get(clan_id)
+    if not raid or raid.get("cancelled"): return
+
+    if not raid["raiders"]:
+        raid["phase"] = "finished"
+        raid["hp"]    = raid["max_hp"]  # boss survives
+        text, _       = _render_raid(raid)
+        try: _bot.edit_message_text(text + "\n\n_No raiders joined!_",
+            chat_id, msg_id, parse_mode="Markdown")
+        except: pass
+        active_raids.pop(clan_id, None)
+        return
+
+    # ── 3 Attack rounds ───────────────────────────────────────────────
+    for rnd in range(1, RAID_ROUNDS + 1):
+        raid["phase"] = "attacking"
+        raid["round"] = rnd
+
+        text, markup = _render_raid(raid)
+        try: _bot.edit_message_text(text, chat_id, msg_id,
+            reply_markup=markup, parse_mode="Markdown")
+        except: pass
+
+        time.sleep(RAID_ROUND_TIME)
+        raid = active_raids.get(clan_id)
+        if not raid: return
+
+        # Calculate round damage
+        round_dmg = 0
+        for uid, r in raid["raiders"].items():
+            if rnd in r.get("attacked_rounds", []):
+                round_dmg += r.get("round_dmg", {}).get(rnd, 0)
+
+        raid["hp"] = max(0, raid["hp"] - round_dmg)
+
+        # Boss counterattack between rounds (not after last round)
+        counter_msg = ""
+        if rnd < RAID_ROUNDS and raid["hp"] > 0 and raid["raiders"]:
+            target_uid = random.choice(list(raid["raiders"].keys()))
+            penalty    = random.randint(10, 30)
+            raid["raiders"][target_uid]["penalty"] = raid["raiders"][target_uid].get("penalty", 0) + penalty
+            tname      = raid["raiders"][target_uid]["name"]
+            counter_msg = f"\n💥 *Boss counterattacks {tname}!* (-{penalty}% reward)"
+
+        if counter_msg:
+            try: _bot.send_message(chat_id, counter_msg, parse_mode="Markdown")
+            except: pass
+
+        # Boss dead?
+        if raid["hp"] <= 0:
+            break
+
+    # ── Finish ────────────────────────────────────────────────────────
+    raid["phase"] = "finished"
+    won           = raid["hp"] <= 0
+    boss          = raid["boss"]
+
+    if won:
+        base_reward   = random.randint(boss["min_reward"], boss["max_reward"])
+        raiders_count = len(raid["raiders"])
+        raid["total_reward"] = base_reward
+
+        for uid, r in raid["raiders"].items():
+            penalty  = r.get("penalty", 0)
+            share    = base_reward // raiders_count
+            share    = int(share * (1 - penalty / 100))
+            db.update_chips(uid, share)
+            db.add_xp(uid, 100)
+
+        # Save to DB and add clan XP
+        clan = get_clan_by_id(clan_id)
+        db.execute("UPDATE clans SET xp=xp+? WHERE id=?", (100 * raiders_count, clan_id))
+        db.execute(
+            "INSERT INTO clan_raids (clan_id, boss_name, result, reward, raiders, started_at) VALUES (?,?,?,?,?,?)",
+            (clan_id, boss["name"], "win", base_reward, raiders_count, datetime.utcnow().isoformat())
+        )
+    else:
+        db.execute(
+            "INSERT INTO clan_raids (clan_id, boss_name, result, reward, raiders, started_at) VALUES (?,?,?,?,?,?)",
+            (clan_id, boss["name"], "loss", 0, len(raid["raiders"]), datetime.utcnow().isoformat())
+        )
+
+    text, _ = _render_raid(raid)
+    try: _bot.edit_message_text(text, chat_id, msg_id, parse_mode="Markdown")
+    except: pass
+
+    active_raids.pop(clan_id, None)
+
+def _clan_raid(message, p):
+    uid = message.from_user.id
+    mem = get_member(uid)
+    if not mem:
+        _bot.reply_to(message, "❌ You need to be in a clan!"); return
+
+    clan_id = member_val(mem, "clan_id")
+    role    = member_val(mem, "role")
+
+    if role not in ("leader", "officer"):
+        _bot.reply_to(message, "❌ Only leader or officers can start a raid!"); return
+
+    if clan_id in active_raids:
+        _bot.reply_to(message, "⚔️ A raid is already in progress!"); return
+
+    # Check cooldown
+    last = get_last_raid(clan_id)
+    if last:
+        last_dt = datetime.fromisoformat(last)
+        diff    = (datetime.utcnow() - last_dt).total_seconds()
+        if diff < RAID_COOLDOWN:
+            remaining = int(RAID_COOLDOWN - diff)
+            hrs  = remaining // 3600
+            mins = (remaining % 3600) // 60
+            _bot.reply_to(message, f"⏰ Clan raid on cooldown!\nNext raid in: *{hrs}h {mins}m*"); return
+
+    clan    = get_clan_by_id(clan_id)
+    level   = clan_val(clan, "level") or 1
+    boss    = BOSSES[level]
+    cname   = clan_val(clan, "name")
+
+    raid = {
+        "clan_id":  clan_id,
+        "boss":     boss,
+        "hp":       boss["hp"],
+        "max_hp":   boss["hp"],
+        "phase":    "joining",
+        "round":    0,
+        "raiders":  {},
+        "cancelled": False,
+    }
+    active_raids[clan_id] = raid
+
+    # Auto-add leader
+    raid["raiders"][uid] = {
+        "name": message.from_user.first_name,
+        "role": role,
+        "attacked_rounds": [],
+        "round_dmg": {},
+        "penalty": 0,
+    }
+
+    text, markup = _render_raid(raid)
+    msg = _bot.reply_to(message, text, reply_markup=markup)
+
+    # Run raid in background
+    t = threading.Thread(
+        target=_run_raid,
+        args=(clan_id, message.chat.id, msg.message_id),
+        daemon=True
+    )
+    t.start()
+
+def _cb_raid_join(call, uid, clan_id):
+    raid = active_raids.get(clan_id)
+    if not raid or raid["phase"] != "joining":
+        _bot.answer_callback_query(call.id, "Joining phase is over!"); return
+    if uid in raid["raiders"]:
+        _bot.answer_callback_query(call.id, "Already in the raid!"); return
+
+    mem  = get_member(uid)
+    role = member_val(mem, "role") if mem and member_val(mem,"clan_id") == clan_id else "member"
+    p    = db.get_player(uid)
+    if not p:
+        _bot.answer_callback_query(call.id, "Register first!"); return
+
+    raid["raiders"][uid] = {
+        "name": call.from_user.first_name,
+        "role": role,
+        "attacked_rounds": [],
+        "round_dmg": {},
+        "penalty": 0,
+    }
+    _bot.answer_callback_query(call.id, "⚔️ Joined the raid! Get ready to attack!")
+
+    text, markup = _render_raid(raid)
+    try:
+        _bot.edit_message_text(text, call.message.chat.id,
+            call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+    except: pass
+
+def _cb_raid_start(call, uid, clan_id):
+    mem = get_member(uid)
+    if not mem or member_val(mem,"role") not in ("leader","officer") or member_val(mem,"clan_id") != clan_id:
+        _bot.answer_callback_query(call.id, "Leaders/officers only!"); return
+    raid = active_raids.get(clan_id)
+    if not raid or raid["phase"] != "joining":
+        _bot.answer_callback_query(call.id, "Already started!"); return
+    raid["cancelled"] = True  # stop the sleep loop
+    _bot.answer_callback_query(call.id, "▶️ Starting raid now!")
+    # Restart raid immediately
+    active_raids[clan_id] = {**raid, "cancelled": False}
+    t = threading.Thread(
+        target=_run_raid,
+        args=(clan_id, call.message.chat.id, call.message.message_id),
+        daemon=True
+    )
+    t.start()
+
+def _cb_raid_attack(call, uid, clan_id):
+    raid = active_raids.get(clan_id)
+    if not raid or raid["phase"] != "attacking":
+        _bot.answer_callback_query(call.id, "No attack phase active!"); return
+    if uid not in raid["raiders"]:
+        _bot.answer_callback_query(call.id, "You didn't join this raid!"); return
+
+    rnd    = raid["round"]
+    raider = raid["raiders"][uid]
+    if rnd in raider.get("attacked_rounds", []):
+        _bot.answer_callback_query(call.id, f"Already attacked this round!"); return
+
+    dmg = _calc_damage(uid, raider["role"])
+    raider.setdefault("attacked_rounds", []).append(rnd)
+    raider.setdefault("round_dmg", {})[rnd] = dmg
+    _bot.answer_callback_query(call.id,
+        f"⚔️ You dealt *{fmt(dmg)}* damage!", show_alert=True)
+
+# Hook raid callbacks into main cb_clan
+_orig_cb_clan = cb_clan
+
+def cb_clan(call):
+    uid     = call.from_user.id
+    data    = call.data
+    mem     = get_member(uid)
+    clan_id = member_val(mem, "clan_id") if mem else None
+
+    if data == "clan_raid_join" and clan_id:
+        _cb_raid_join(call, uid, clan_id); return
+    if data == "clan_raid_start" and clan_id:
+        _cb_raid_start(call, uid, clan_id); return
+    if data == "clan_raid_attack" and clan_id:
+        _cb_raid_attack(call, uid, clan_id); return
+    if data.startswith("clan_") and not data.startswith("clan_raid"):
+        _orig_cb_clan(call); return
+    if not mem and data.startswith("clan_raid"):
+        _bot.answer_callback_query(call.id, "You're not in a clan!"); return
+
+# Update register to also init raid DB and register new cb_clan
+_orig_register = register_clan
+
+def register_clan(bot_instance):
+    global _bot
+    _bot = bot_instance
+    init_clan_db()
+    init_raid_db()
+    bot_instance.register_message_handler(cmd_clan, commands=["clan"])
+    bot_instance.register_callback_query_handler(
+        cb_clan, func=lambda c: c.data.startswith("clan_"))
+    print("✅ Clan + Boss Raid loaded")
