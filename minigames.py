@@ -4,7 +4,27 @@ import database as db
 
 _bot = None
 active_games = {}
-streaks = {}
+MAX_STREAK = 9999
+
+def get_streak(uid):
+    import database as _db
+    row = _db.execute("SELECT streak FROM player_streaks WHERE user_id=?", (uid,), fetch="one")
+    if not row: return 0
+    return (row["streak"] if isinstance(row, dict) else row[0]) or 0
+
+def set_streak(uid, val):
+    import database as _db
+    val = min(val, MAX_STREAK)
+    existing = _db.execute("SELECT user_id FROM player_streaks WHERE user_id=?", (uid,), fetch="one")
+    if existing:
+        _db.execute("UPDATE player_streaks SET streak=? WHERE user_id=?", (val, uid))
+    else:
+        _db.execute("INSERT INTO player_streaks (user_id, streak) VALUES (?,?)", (uid, val))
+
+def reset_streak(uid):
+    import database as _db
+    _db.execute("UPDATE player_streaks SET streak=0 WHERE user_id=?", (uid,))
+
 
 WORD_REWARD   = 500
 EMOJI_REWARD  = 800
@@ -115,7 +135,7 @@ def timeout_game(chat_id):
     game = active_games.pop(chat_id, None)
     if not game: return
     for uid in game.get("wrong", set()):
-        streaks.pop(uid, None)
+        reset_streak(uid)
     _bot.send_message(chat_id,
         f"⏰ Time's up! Nobody got it.\n✅ Answer: *{game['answer']}*",
         parse_mode="Markdown")
@@ -208,8 +228,9 @@ def handle_answer(message):
         cancel_timer(cid)
         active_games.pop(cid, None)
 
-        streaks[uid] = streaks.get(uid, 0) + 1
-        streak = streaks[uid]
+        new_streak = min(get_streak(uid) + 1, MAX_STREAK)
+        set_streak(uid, new_streak)
+        streak = new_streak
         bonus  = STREAK_BONUS * (streak - 1) if streak > 1 else 0
         total  = game["reward"] + bonus
 
@@ -231,7 +252,7 @@ def handle_answer(message):
     else:
         wrong_set[uid] = wrong_set.get(uid, 0) + 1
         game["wrong"].add(uid)
-        streaks.pop(uid, None)
+        reset_streak(uid)
 
         p = db.get_player(uid)
         if p and p["chips"] >= WRONG_PENALTY:   # FIXED: was p["balance"]
@@ -245,6 +266,8 @@ def handle_answer(message):
                 f"Tries left: {3 - wrong_set[uid]}")
 
 def register_minigames(bot_instance):
+    import database as _db
+    _db.init_streaks_db()
     global _bot
     _bot = bot_instance
     bot_instance.register_message_handler(cmd_wordgame,   commands=["wordgame"])

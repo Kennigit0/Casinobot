@@ -209,6 +209,14 @@ def add_xp(user_id, amount):
 
 # ── Players ───────────────────────────────────────────────────────────
 
+def init_streaks_db():
+    execute("""
+        CREATE TABLE IF NOT EXISTS player_streaks (
+            user_id BIGINT PRIMARY KEY,
+            streak  INTEGER DEFAULT 0
+        )
+    """)
+
 def save_group(chat_id):
     """Save group chat_id so lottery/announcements can reach it"""
     existing = execute("SELECT chat_id FROM groups WHERE chat_id=?", (chat_id,), fetch="one")
