@@ -260,14 +260,27 @@ def run_draw():
 # ── Scheduler ─────────────────────────────────────────────────────────
 def start_scheduler():
     def loop():
+        last_draw_date = None
         while True:
-            now      = datetime.utcnow()
-            midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-            time.sleep((midnight - now).total_seconds())
-            try: run_draw()
-            except Exception as e: print(f"Lottery draw error: {e}")
+            try:
+                now  = datetime.utcnow()
+                today = now.strftime("%Y-%m-%d")
+                # Draw at midnight UTC (00:00-00:02 window)
+                is_draw_time = now.hour == 0 and now.minute < 2
+                if is_draw_time and last_draw_date != today:
+                    last_draw_date = today
+                    # Double-check using DB last_winner date
+                    row = db.execute("SELECT value FROM lottery_state WHERE key='last_winner'", fetch="one")
+                    last_val = _row_val(row, "value", 0) if row else ""
+                    last_date = last_val.split("|")[-1] if "|" in str(last_val) else ""
+                    if last_date != today:
+                        print(f"🎰 Running lottery draw for {today}")
+                        run_draw()
+            except Exception as e:
+                print(f"Lottery scheduler error: {e}")
+            time.sleep(60)  # check every minute — survives restarts
     threading.Thread(target=loop, daemon=True).start()
-    print("✅ Lottery scheduler started")
+    print("✅ Lottery scheduler started (checks every 60s)")
 
 # ── Register ──────────────────────────────────────────────────────────
 def register_lottery(bot_instance):
