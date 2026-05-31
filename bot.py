@@ -725,5 +725,88 @@ if __name__ == "__main__":
     bot.register_message_handler(lottery.cmd_drawlottery, commands=["drawlottery"])
     bounty.register_bounty(bot)
     print("✅ Bounty loaded")
+
+@bot.message_handler(commands=["bjcancel", "cancelBJ", "bjleave"])
+def cmd_bjcancel(message):
+    uid = message.from_user.id
+    p   = db.get_player(uid)
+    if not p: bot.reply_to(message, "❗ Register first with /start"); return
+
+    # Check pending table
+    for gid, g in list(pending_bj.items()):
+        if g.get("host_id") == uid:
+            bet = g.get("bet", 0)
+            # Refund all players
+            for pl in g.get("players", []):
+                db.update_chips(pl["uid"], bet)
+            pending_bj.pop(gid, None)
+            db.execute("DELETE FROM bj_games WHERE game_id=?", (gid,))
+            bot.reply_to(message, f"✅ Table cancelled! *{fmt(bet)}* chips refunded.")
+            return
+
+    # Check active DB game
+    row = db.execute(
+        "SELECT game_id, bet, data FROM bj_games WHERE host_id=?",
+        (uid,), fetch="one"
+    )
+    if not row:
+        # Check if player is a joiner (not host)
+        import json
+        rows = db.execute("SELECT game_id, bet, data FROM bj_games", fetch="all") or []
+        for r in rows:
+            gid  = r["game_id"] if isinstance(r, dict) else r[0]
+            bet  = r["bet"]     if isinstance(r, dict) else r[1]
+            data = r["data"]    if isinstance(r, dict) else r[2]
+            try:
+                gdata = json.loads(data)
+                players = gdata.get("players", [])
+                if any(pl["uid"] == uid for pl in players):
+                    # Remove player from game
+                    gdata["players"] = [pl for pl in players if pl["uid"] != uid]
+                    db.update_chips(uid, bet)
+                    db.execute("UPDATE bj_games SET data=? WHERE game_id=?",
+                               (json.dumps(gdata), gid))
+                    bot.reply_to(message, f"✅ Left the BJ table! *{fmt(bet)}* chips refunded.")
+                    return
+            except: continue
+        bot.reply_to(message, "❌ You have no active BJ game.")
+        return
+
+    gid  = row["game_id"] if isinstance(row, dict) else row[0]
+    bet  = row["bet"]     if isinstance(row, dict) else row[1]
+    data_str = row["data"] if isinstance(row, dict) else row[2]
+    try:
+        import json
+        gdata   = json.loads(data_str)
+        players = gdata.get("players", [])
+        # Refund all players
+        for pl in players:
+            db.update_chips(pl["uid"], bet)
+    except: db.update_chips(uid, bet)
+
+    db.execute("DELETE FROM bj_games WHERE game_id=?", (gid,))
+    bot.reply_to(message, f"✅ BJ game cancelled! Chips refunded to all players.")
+
+
+
+    # Auto-cleanup stale BJ games older than 30 minutes
+    from datetime import datetime, timedelta
+    import json
+    stale_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
+    stale = db.execute(
+        "SELECT game_id, bet, data FROM bj_games WHERE created_at < ? OR created_at IS NULL",
+        (stale_time,), fetch="all"
+    ) or []
+    for row in stale:
+        gid  = row["game_id"] if isinstance(row, dict) else row[0]
+        bet  = row["bet"]     if isinstance(row, dict) else row[1]
+        data_str = row["data"] if isinstance(row, dict) else row[2]
+        try:
+            gdata = json.loads(data_str)
+            for pl in gdata.get("players", []):
+                db.update_chips(pl["uid"], bet)
+        except: pass
+        db.execute("DELETE FROM bj_games WHERE game_id=?", (gid,))
+    if stale: print(f"🧹 Cleaned {len(stale)} stale BJ game(s)")
     print("🤖 Bot polling...")
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
