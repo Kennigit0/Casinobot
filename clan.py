@@ -871,10 +871,14 @@ def _cb_raid_join(call, uid, clan_id):
     if not raid or raid["phase"] != "joining":
         _bot.answer_callback_query(call.id, "Joining phase is over!"); return
     if uid in raid["raiders"]:
-        _bot.answer_callback_query(call.id, "Already in the raid!"); return
+        _bot.answer_callback_query(call.id, "✅ Already in the raid!", show_alert=True); return
 
-    mem  = get_member(uid)
-    role = member_val(mem, "role") if mem and member_val(mem,"clan_id") == clan_id else "member"
+    # Only clan members can join
+    mem = get_member(uid)
+    if not mem or member_val(mem, "clan_id") != clan_id:
+        _bot.answer_callback_query(call.id, "❌ You must be in this clan to join!", show_alert=True); return
+
+    role = member_val(mem, "role")
     p    = db.get_player(uid)
     if not p:
         _bot.answer_callback_query(call.id, "Register first!"); return
@@ -928,7 +932,7 @@ def _cb_raid_attack(call, uid, clan_id):
     rnd    = raid["round"]
     raider = raid["raiders"][uid]
     if rnd in raider.get("attacked_rounds", []):
-        _bot.answer_callback_query(call.id, f"Already attacked this round!"); return
+        _bot.answer_callback_query(call.id, f"✅ Already attacked this round! Wait for next round.", show_alert=True); return
 
     dmg = _calc_damage(uid, raider["role"])
     raider.setdefault("attacked_rounds", []).append(rnd)
@@ -985,8 +989,13 @@ def cb_clan(call):
         except: pass
         return
 
-    if data == "clan_raid_join" and clan_id:
-        _cb_raid_join(call, uid, clan_id); return
+    if data == "clan_raid_join":
+        # Find which raid this button belongs to
+        for cid_active, raid_active in active_raids.items():
+            if raid_active["phase"] == "joining":
+                _cb_raid_join(call, uid, cid_active)
+                return
+        _bot.answer_callback_query(call.id, "No active raid found!"); return
     if data == "clan_raid_start" and clan_id:
         _cb_raid_start(call, uid, clan_id); return
     if data == "clan_raid_attack" and clan_id:
