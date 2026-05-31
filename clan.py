@@ -857,14 +857,7 @@ def _clan_raid(message, p):
         "Entry fee deducted when joining. Refunded on win.\n"
         "Ready to start?",
         reply_markup=markup_confirm)
-
-    # Run raid in background
-    t = threading.Thread(
-        target=_run_raid,
-        args=(clan_id, message.chat.id, msg.message_id),
-        daemon=True
-    )
-    t.start()
+    # Thread is started in _cb_raid_confirm after user confirms
 
 def _cb_raid_join(call, uid, clan_id):
     raid = active_raids.get(clan_id)
