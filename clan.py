@@ -170,13 +170,17 @@ def _show_clan(message, clan, my_mem=None, edit=False, call=None):
     level   = clan_val(clan, "level") or 1
     xp      = clan_val(clan, "xp") or 0
     desc    = clan_val(clan, "description") or ""
-    leader  = clan_val(clan, "leader_id")
-    lvl_info= CLAN_LEVELS[level]
-    members = get_clan_members(cid)
-    count   = len(members)
-
-    leader_p = db.get_player(leader)
-    lname    = leader_p["first_name"] if leader_p else "Unknown"
+    leader   = clan_val(clan, "leader_id")
+    lvl_info = CLAN_LEVELS[level]
+    # Get count + leader name in one query
+    row_info = db.execute(
+        "SELECT COUNT(cm.user_id) as cnt, p.first_name as lname "
+        "FROM clan_members cm, players p "
+        "WHERE cm.clan_id=? AND p.user_id=?",
+        (cid, leader), fetch="one"
+    )
+    count  = (_rv(row_info,"cnt",0) or 0) if row_info else 0
+    lname  = (_rv(row_info,"lname",1) or "Unknown") if row_info else "Unknown"
 
     next_cost = CLAN_LEVELS.get(level+1, {}).get("upgrade_cost")
     next_str  = f"{next_cost} 💎 gems" if next_cost else "MAX"
@@ -470,8 +474,10 @@ def _clan_upgrade(message, p):
 
 def _clan_top(message):
     rows = db.execute(
-        "SELECT name, level, bank, leader_id, (SELECT COUNT(*) FROM clan_members WHERE clan_id=clans.id) as mc "
-        "FROM clans ORDER BY bank DESC LIMIT 10",
+        "SELECT c.name, c.level, c.bank, c.leader_id, COUNT(cm.user_id) as mc "
+        "FROM clans c LEFT JOIN clan_members cm ON cm.clan_id=c.id "
+        "GROUP BY c.id, c.name, c.level, c.bank, c.leader_id "
+        "ORDER BY c.bank DESC LIMIT 10",
         fetch="all"
     ) or []
 
@@ -518,8 +524,10 @@ def cb_clan(call):
     if data == "clan_browse":
         _bot.answer_callback_query(call.id)
         rows = db.execute(
-            "SELECT name, level, (SELECT COUNT(*) FROM clan_members WHERE clan_id=clans.id) as mc "
-            "FROM clans ORDER BY bank DESC LIMIT 8", fetch="all"
+            "SELECT c.name, c.level, COUNT(cm.user_id) as mc "
+            "FROM clans c LEFT JOIN clan_members cm ON cm.clan_id=c.id "
+            "GROUP BY c.id, c.name, c.level ORDER BY c.bank DESC LIMIT 8",
+            fetch="all"
         ) or []
         if not rows:
             _bot.send_message(call.message.chat.id, "No clans yet! Be the first: `/clan create <name>`")
@@ -537,15 +545,20 @@ def cb_clan(call):
 
     if data.startswith("clan_members_"):
         clan_id = int(data.split("_")[-1])
-        members = get_clan_members(clan_id)
-        lines   = ["👥 *Clan Members*\n"]
+        # Single JOIN query — no N+1
+        rows_m = db.execute(
+            "SELECT cm.user_id, cm.role, cm.contribution, p.first_name "
+            "FROM clan_members cm LEFT JOIN players p ON p.user_id=cm.user_id "
+            "WHERE cm.clan_id=? ORDER BY CASE cm.role WHEN 'leader' THEN 0 WHEN 'officer' THEN 1 ELSE 2 END",
+            (clan_id,), fetch="all"
+        ) or []
+        lines     = ["👥 *Clan Members*\n"]
         role_icon = {"leader":"👑","officer":"🎖️","member":"👤"}
-        for m in members:
-            mid   = member_val(m, "user_id")
-            role  = member_val(m, "role")
-            contrib = member_val(m, "contribution") or 0
-            pl    = db.get_player(mid)
-            pname = pl["first_name"] if pl else "Unknown"
+        for r in rows_m:
+            mid     = _rv(r,"user_id",0)
+            role    = _rv(r,"role",1) or "member"
+            contrib = _rv(r,"contribution",2) or 0
+            pname   = _rv(r,"first_name",3) or "Unknown"
             lines.append(f"{role_icon.get(role,'👤')} *{pname}* — {role.title()} | 💰{fmt(contrib)}")
         _bot.answer_callback_query(call.id)
         _bot.send_message(call.message.chat.id, "\n".join(lines))
