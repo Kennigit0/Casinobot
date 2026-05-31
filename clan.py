@@ -118,7 +118,7 @@ def cmd_clan(message):
     if sub == "withdraw":    return _clan_withdraw(message, p, args)
     if sub == "kick":        return _clan_kick(message, p, args)
     if sub == "promote":     return _clan_promote(message, p, args)
-    if sub in ("raid","heist"): return _clan_raid(message, p)
+    if sub in ("boss","raid","heist"): return _clan_raid(message, p)
     if sub in ("top","lb"):  return _clan_top(message)
     if sub == "upgrade":     return _clan_upgrade(message, p)
     if sub == "desc":        return _clan_desc(message, p, args)
@@ -595,11 +595,11 @@ def register_clan(bot_instance):
 
 # ── Boss Raid System ──────────────────────────────────────────────────
 BOSSES = {
-    1: {"name": "👹 Goblin King",    "hp": 1000,  "min_reward": 50_000,    "max_reward": 100_000},
-    2: {"name": "🐉 Fire Drake",     "hp": 3000,  "min_reward": 200_000,   "max_reward": 500_000},
-    3: {"name": "💀 Death Knight",   "hp": 8000,  "min_reward": 1_000_000, "max_reward": 3_000_000},
-    4: {"name": "🌑 Shadow Demon",   "hp": 20000, "min_reward": 5_000_000, "max_reward": 10_000_000},
-    5: {"name": "☠️ Ancient Dragon", "hp": 50000, "min_reward": 20_000_000,"max_reward": 50_000_000},
+    1: {"name": "👹 Goblin King",    "hp": 1000,  "entry": 5_000,      "min_reward": 50_000,    "max_reward": 100_000},
+    2: {"name": "🐉 Fire Drake",     "hp": 3000,  "entry": 20_000,     "min_reward": 200_000,   "max_reward": 500_000},
+    3: {"name": "💀 Death Knight",   "hp": 8000,  "entry": 100_000,    "min_reward": 1_000_000, "max_reward": 3_000_000},
+    4: {"name": "🌑 Shadow Demon",   "hp": 20000, "entry": 500_000,    "min_reward": 5_000_000, "max_reward": 10_000_000},
+    5: {"name": "☠️ Ancient Dragon", "hp": 50000, "entry": 2_000_000,  "min_reward": 20_000_000,"max_reward": 50_000_000},
 }
 
 RAID_JOIN_TIME  = 120   # 2 min joining phase
@@ -778,7 +778,8 @@ def _run_raid(clan_id, chat_id, msg_id):
             penalty  = r.get("penalty", 0)
             share    = base_reward // raiders_count
             share    = int(share * (1 - penalty / 100))
-            db.update_chips(uid, share)
+            entry    = raid["boss"]["entry"]
+            db.update_chips(uid, share + entry)  # reward + entry refund
             db.add_xp(uid, 100)
 
         # Save to DB and add clan XP
@@ -831,29 +832,31 @@ def _clan_raid(message, p):
     boss    = BOSSES[level]
     cname   = clan_val(clan, "name")
 
-    raid = {
-        "clan_id":  clan_id,
-        "boss":     boss,
-        "hp":       boss["hp"],
-        "max_hp":   boss["hp"],
-        "phase":    "joining",
-        "round":    0,
-        "raiders":  {},
-        "cancelled": False,
-    }
-    active_raids[clan_id] = raid
+    entry = boss["entry"]
+    p2    = db.get_player(uid)
+    if (p2.get("chips") or 0) < entry:
+        _bot.reply_to(message,
+            f"❌ You need *{fmt(entry)}* chips to start this raid!\nYou have: *{fmt(p2.get('chips',0))}*"); return
 
-    # Auto-add leader
-    raid["raiders"][uid] = {
-        "name": message.from_user.first_name,
-        "role": role,
-        "attacked_rounds": [],
-        "round_dmg": {},
-        "penalty": 0,
-    }
-
-    text, markup = _render_raid(raid)
-    msg = _bot.reply_to(message, text, reply_markup=markup)
+    # Confirmation message first
+    markup_confirm = types.InlineKeyboardMarkup()
+    markup_confirm.row(
+        types.InlineKeyboardButton("⚔️ Start Raid", callback_data=f"clan_raid_confirm_{clan_id}"),
+        types.InlineKeyboardButton("❌ Cancel",      callback_data=f"clan_raid_cancel_{clan_id}"),
+    )
+    boss_name = boss['name']
+    boss_hp   = boss['hp']
+    min_rew   = boss['min_reward']
+    max_rew   = boss['max_reward']
+    _bot.reply_to(message,
+        f"⚔️ *Boss Raid — {boss_name}*\n\n"
+        f"❤️ HP: *{boss_hp:,}*\n"
+        f"💰 Entry fee: *{fmt(entry)}* chips per raider\n"
+        f"🏆 Reward: *{fmt(min_rew)}* – *{fmt(max_rew)}* chips\n"
+        f"🕐 Joining: 2 min | ⚔️ Rounds: 3 × 60s\n\n"
+        "Entry fee deducted when joining. Refunded on win.\n"
+        "Ready to start?",
+        reply_markup=markup_confirm)
 
     # Run raid in background
     t = threading.Thread(
@@ -876,14 +879,20 @@ def _cb_raid_join(call, uid, clan_id):
     if not p:
         _bot.answer_callback_query(call.id, "Register first!"); return
 
+    entry = raid["boss"]["entry"]
+    p2    = db.get_player(uid)
+    if (p2.get("chips") or 0) < entry:
+        _bot.answer_callback_query(call.id, f"❌ Need {fmt(entry)} chips to join!", show_alert=True); return
+    db.update_chips(uid, -entry)
     raid["raiders"][uid] = {
         "name": call.from_user.first_name,
         "role": role,
         "attacked_rounds": [],
         "round_dmg": {},
         "penalty": 0,
+        "entry_paid": True,
     }
-    _bot.answer_callback_query(call.id, "⚔️ Joined the raid! Get ready to attack!")
+    _bot.answer_callback_query(call.id, f"⚔️ Joined! {fmt(entry)} chips deducted. Get ready to attack!")
 
     text, markup = _render_raid(raid)
     try:
@@ -935,6 +944,46 @@ def cb_clan(call):
     data    = call.data
     mem     = get_member(uid)
     clan_id = member_val(mem, "clan_id") if mem else None
+
+    if data.startswith("clan_raid_confirm_"):
+        cid2 = int(data.split("_")[-1])
+        mem2 = get_member(uid)
+        if not mem2 or member_val(mem2,"clan_id") != cid2 or member_val(mem2,"role") not in ("leader","officer"):
+            _bot.answer_callback_query(call.id, "Leaders/officers only!", show_alert=True); return
+        if cid2 in active_raids:
+            _bot.answer_callback_query(call.id, "Raid already started!"); return
+        clan2  = get_clan_by_id(cid2)
+        level2 = clan_val(clan2,"level") or 1
+        boss2  = BOSSES[level2]
+        entry2 = boss2["entry"]
+        p3     = db.get_player(uid)
+        if (p3.get("chips") or 0) < entry2:
+            _bot.answer_callback_query(call.id, f"Not enough chips! Need {fmt(entry2)}", show_alert=True); return
+        # Start the raid
+        db.update_chips(uid, -entry2)
+        raid2 = {
+            "clan_id": cid2, "boss": boss2, "hp": boss2["hp"], "max_hp": boss2["hp"],
+            "phase": "joining", "round": 0, "raiders": {}, "cancelled": False,
+        }
+        raid2["raiders"][uid] = {"name": call.from_user.first_name, "role": member_val(mem2,"role"),
+            "attacked_rounds": [], "round_dmg": {}, "penalty": 0, "entry_paid": True}
+        active_raids[cid2] = raid2
+        text2, markup2 = _render_raid(raid2)
+        try: _bot.edit_message_text(text2, call.message.chat.id, call.message.message_id,
+            reply_markup=markup2, parse_mode="Markdown")
+        except: pass
+        _bot.answer_callback_query(call.id, "⚔️ Raid started!")
+        t = threading.Thread(target=_run_raid, args=(cid2, call.message.chat.id, call.message.message_id), daemon=True)
+        t.start()
+        return
+
+    if data.startswith("clan_raid_cancel_"):
+        cid2 = int(data.split("_")[-1])
+        active_raids.pop(cid2, None)
+        _bot.answer_callback_query(call.id, "❌ Raid cancelled.")
+        try: _bot.edit_message_text("❌ Raid cancelled.", call.message.chat.id, call.message.message_id)
+        except: pass
+        return
 
     if data == "clan_raid_join" and clan_id:
         _cb_raid_join(call, uid, clan_id); return
