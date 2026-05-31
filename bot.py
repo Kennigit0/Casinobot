@@ -713,8 +713,6 @@ if __name__ == "__main__":
     print("✅ Gems loaded")
     minigames.register_minigames(bot)
     print("✅ Minigames loaded")
-    minigames.register_minigames(bot)
-    print("✅ Minigames loaded")
     lottery.register_lottery(bot)
     print("✅ Lottery loaded")
     crash.register_crash(bot)
@@ -788,8 +786,11 @@ def cmd_bjcancel(message):
     bot.reply_to(message, f"✅ BJ game cancelled! Chips refunded to all players.")
 
 
+if __name__ == "__main__":
+    pass  # already initialized above
 
-    # Auto-cleanup stale BJ games older than 30 minutes
+# ── Auto-cleanup stale BJ games + start polling ───────────────────────
+if __name__ == "__main__":
     from datetime import datetime, timedelta
     import json
     stale_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
@@ -798,15 +799,15 @@ def cmd_bjcancel(message):
         (stale_time,), fetch="all"
     ) or []
     for row in stale:
-        gid  = row["game_id"] if isinstance(row, dict) else row[0]
-        bet  = row["bet"]     if isinstance(row, dict) else row[1]
-        data_str = row["data"] if isinstance(row, dict) else row[2]
+        gid2     = row["game_id"] if isinstance(row, dict) else row[0]
+        bet2     = row["bet"]     if isinstance(row, dict) else row[1]
+        data_str2= row["data"]    if isinstance(row, dict) else row[2]
         try:
-            gdata = json.loads(data_str)
-            for pl in gdata.get("players", []):
-                db.update_chips(pl["uid"], bet)
+            gdata2 = json.loads(data_str2)
+            for pl in gdata2.get("players", []):
+                db.update_chips(pl["uid"], bet2)
         except: pass
-        db.execute("DELETE FROM bj_games WHERE game_id=?", (gid,))
+        db.execute("DELETE FROM bj_games WHERE game_id=?", (gid2,))
     if stale: print(f"🧹 Cleaned {len(stale)} stale BJ game(s)")
     print("🤖 Bot polling...")
     bot.infinity_polling(timeout=30, long_polling_timeout=30)
