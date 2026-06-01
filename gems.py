@@ -20,7 +20,7 @@ ACHIEVEMENTS = {
     "grinder":         {"name": "💵 Grinder",           "desc": "Earn 100,000 chips total",        "reward_chips": 0,     "reward_gems": 1,  "check": lambda p: (p.get("total_earned") or 0) >= 100_000},
     "rich_kid":        {"name": "💰 Rich Kid",          "desc": "Reach 500,000 chips",             "reward_chips": 0,     "reward_gems": 2,  "check": lambda p: (p.get("chips") or 0) >= 500_000},
     "millionaire":     {"name": "🤑 Millionaire",       "desc": "Reach 1,000,000 chips",           "reward_chips": 0,     "reward_gems": 5,  "check": lambda p: (p.get("chips") or 0) >= 1_000_000},
-    "billionaire":     {"name": "💎 Billionaire",       "desc": "Reach 10,000,000 chips",          "reward_chips": 0,     "reward_gems": 10, "check": lambda p: (p.get("chips") or 0) >= 10_000_000},
+    "billionaire":     {"name": "💎 Billionaire",       "desc": "Reach 1,000,000,000 chips",        "reward_chips": 0,     "reward_gems": 10, "check": lambda p: (p.get("chips") or 0) >= 1_000_000_000},
     "banker":          {"name": "🏦 Banker",            "desc": "Have 500,000 chips in bank",      "reward_chips": 0,     "reward_gems": 2,  "check": lambda p: (p.get("bank") or 0) >= 500_000},
     # Streaks
     "hot_streak":      {"name": "🔥 Hot Streak",        "desc": "Win 10 minigames in a row",       "reward_chips": 1000,  "reward_gems": 1,  "check": lambda p: (p.get("best_streak") or 0) >= 10},

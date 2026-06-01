@@ -144,7 +144,8 @@ def cmd_help(message):
         "/dice `[type] [bet]` — 🎲 Dice roll animation\n"
         "/bj `[bet]` — 🃏 Multiplayer blackjack\n"
         "/roulette `[type] [value] [bet]` — 🎡 Roulette\n"
-        "/crash — 🚀 Multiplayer crash game\n\n"
+        "/crash — 🚀 Multiplayer crash game\n"
+        "/coinflip [amount] — 🪙 1v1 heads or tails\n\n"
 
         "*🎲 Dice types:*\n"
         "`/dice even 1000` `/dice odd 1000`\n"
@@ -797,6 +798,149 @@ def cmd_bjcancel(message):
 
 if __name__ == "__main__":
     pass  # already initialized above
+
+
+# ── /coinflip ──────────────────────────────────────────────────────────
+pending_flips = {}  # chat_id -> {host_id, bet, host_choice, msg_id}
+
+@bot.message_handler(commands=["coinflip", "cf", "headstails"])
+def cmd_coinflip(message):
+    uid  = message.from_user.id
+    p    = db.get_player(uid)
+    if not p: bot.reply_to(message, "❗ Register first with /start"); return
+    if message.chat.type == "private":
+        bot.reply_to(message, "❌ Coinflip is a group game! Use it in a group chat."); return
+
+    args = message.text.split()
+    if len(args) < 2:
+        bot.reply_to(message, "Usage: `/coinflip [amount]`\nExample: `/coinflip 5000`"); return
+    try: bet = int(args[1].replace(",",""))
+    except: bot.reply_to(message, "❌ Invalid amount."); return
+    if bet <= 0:
+        bot.reply_to(message, "❌ Amount must be positive."); return
+    if p["chips"] < bet:
+        bot.reply_to(message, f"❌ Not enough chips! Have: *{fmt(p['chips'])}*"); return
+
+    chat_id = message.chat.id
+    if chat_id in pending_flips:
+        bot.reply_to(message, "⚠️ A coinflip is already waiting in this chat! Accept or wait."); return
+
+    # Host picks heads or tails
+    markup = types.InlineKeyboardMarkup()
+    markup.row(
+        types.InlineKeyboardButton("🪙 Heads", callback_data=f"cf_pick_heads_{uid}_{bet}"),
+        types.InlineKeyboardButton("🍀 Tails", callback_data=f"cf_pick_tails_{uid}_{bet}"),
+    )
+    bot.reply_to(message,
+        f"🪙 *Coinflip — {fmt(bet)} chips*\n\n"
+        f"*{message.from_user.first_name}* — pick your side!",
+        reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("cf_pick_") or c.data.startswith("cf_accept_") or c.data.startswith("cf_cancel_"))
+def cb_coinflip(call):
+    uid  = call.from_user.id
+    data = call.data
+    cid  = call.message.chat.id
+
+    if data.startswith("cf_pick_"):
+        parts     = data.split("_")
+        choice    = parts[2]           # heads or tails
+        host_id   = int(parts[3])
+        bet       = int(parts[4])
+
+        if uid != host_id:
+            bot.answer_callback_query(call.id, "❌ Only the challenger can pick!", show_alert=True); return
+
+        p = db.get_player(uid)
+        if p["chips"] < bet:
+            bot.answer_callback_query(call.id, "❌ Not enough chips!", show_alert=True); return
+
+        pending_flips[cid] = {"host_id": host_id, "bet": bet, "host_choice": choice, "msg_id": call.message.message_id}
+        opponent_choice = "Tails 🍀" if choice == "heads" else "Heads 🪙"
+        host_choice_str = "Heads 🪙" if choice == "heads" else "Tails 🍀"
+
+        markup = types.InlineKeyboardMarkup()
+        markup.row(
+            types.InlineKeyboardButton("✅ Accept", callback_data=f"cf_accept_{host_id}_{bet}"),
+            types.InlineKeyboardButton("❌ Cancel", callback_data=f"cf_cancel_{host_id}"),
+        )
+        try:
+            bot.edit_message_text(
+                f"🪙 *Coinflip — {fmt(bet)} chips*\n\n"
+                f"🎯 *{call.from_user.first_name}* picked *{host_choice_str}*\n"
+                f"Anyone can accept and take *{opponent_choice}*!\n\n"
+                f"Winner takes *{fmt(bet * 2)}* chips 🏆",
+                cid, call.message.message_id,
+                reply_markup=markup, parse_mode="Markdown"
+            )
+        except: pass
+        bot.answer_callback_query(call.id, f"You picked {host_choice_str}!")
+        return
+
+    if data.startswith("cf_cancel_"):
+        host_id = int(data.split("_")[-1])
+        if uid != host_id:
+            bot.answer_callback_query(call.id, "Only the host can cancel!"); return
+        pending_flips.pop(cid, None)
+        bot.answer_callback_query(call.id, "Cancelled!")
+        try: bot.edit_message_text("❌ Coinflip cancelled.", cid, call.message.message_id)
+        except: pass
+        return
+
+    if data.startswith("cf_accept_"):
+        parts   = data.split("_")
+        host_id = int(parts[2])
+        bet     = int(parts[3])
+
+        if uid == host_id:
+            bot.answer_callback_query(call.id, "❌ You can\'t accept your own coinflip!", show_alert=True); return
+
+        flip = pending_flips.get(cid)
+        if not flip:
+            bot.answer_callback_query(call.id, "❌ No active coinflip found!"); return
+
+        p_host  = db.get_player(host_id)
+        p_guest = db.get_player(uid)
+        if p_host["chips"] < bet:
+            bot.answer_callback_query(call.id, "Host no longer has enough chips!", show_alert=True)
+            pending_flips.pop(cid, None); return
+        if p_guest["chips"] < bet:
+            bot.answer_callback_query(call.id, f"❌ Need {fmt(bet)} chips to accept!", show_alert=True); return
+
+        # Flip the coin!
+        import random
+        result        = random.choice(["heads", "tails"])
+        host_choice   = flip["host_choice"]
+        host_name     = p_host["first_name"]
+        guest_name    = p_guest["first_name"]
+        result_str    = "Heads 🪙" if result == "heads" else "Tails 🍀"
+
+        pending_flips.pop(cid, None)
+
+        if result == host_choice:
+            # Host wins
+            db.update_chips(uid, -bet)
+            db.update_chips(host_id, bet)
+            winner, loser = host_name, guest_name
+            winner_id = host_id
+        else:
+            # Guest wins
+            db.update_chips(host_id, -bet)
+            db.update_chips(uid, bet)
+            winner, loser = guest_name, host_name
+            winner_id = uid
+
+        db.add_xp(winner_id, 20)
+        bot.answer_callback_query(call.id)
+        try:
+            bot.edit_message_text(
+                f"🪙 *Coinflip Result!*\n\n"
+                f"🎲 The coin landed on *{result_str}*!\n\n"
+                f"🏆 *{winner}* wins *{fmt(bet * 2)}* chips!\n"
+                f"💸 *{loser}* loses *{fmt(bet)}* chips.",
+                cid, call.message.message_id, parse_mode="Markdown"
+            )
+        except: pass
 
 # ── Auto-cleanup stale BJ games + start polling ───────────────────────
 if __name__ == "__main__":
