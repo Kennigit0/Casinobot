@@ -28,12 +28,12 @@ def progress_bar(current_xp):
     bar      = "█" * filled + "░" * (10 - filled)
     return f"[{bar}] {progress}/{needed} XP"
 
-# ── Connection pooling ─────────────────────────────────────────────────
+# ── Connection ─────────────────────────────────────────────────────────
 import threading
-_local      = threading.local()
-_pool       = None
-_pool_lock  = threading.Lock()
-_DB_TYPE    = "pg" if DATABASE_URL else "sqlite"
+_pool      = None
+_pool_lock = threading.Lock()
+_sqlite_conn = None
+_sqlite_lock = threading.Lock()
 
 def _get_pool():
     global _pool
@@ -42,28 +42,23 @@ def _get_pool():
             if _pool is None:
                 from psycopg2 import pool as pgpool
                 _pool = pgpool.ThreadedConnectionPool(
-                    minconn=2, maxconn=10,
+                    minconn=1, maxconn=20,
                     dsn=DATABASE_URL, sslmode="require", connect_timeout=10
                 )
     return _pool
 
 def get_conn():
+    """Returns (conn, db_type). For PostgreSQL, caller must return conn to pool."""
     if DATABASE_URL:
-        # Reuse per-thread connection from pool
-        conn = getattr(_local, "pg_conn", None)
-        if conn is None or conn.closed:
-            conn = _get_pool().getconn()
-            conn.autocommit = False
-            _local.pg_conn = conn
-        return conn, "pg"
+        return _get_pool().getconn(), "pg"
     else:
-        conn = getattr(_local, "sqlite_conn", None)
-        if conn is None:
-            import sqlite3
-            conn = sqlite3.connect("casino.db", check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            _local.sqlite_conn = conn
-        return conn, "sqlite"
+        global _sqlite_conn
+        with _sqlite_lock:
+            if _sqlite_conn is None:
+                import sqlite3
+                _sqlite_conn = sqlite3.connect("casino.db", check_same_thread=False)
+                _sqlite_conn.row_factory = sqlite3.Row
+        return _sqlite_conn, "sqlite"
 
 def execute(query, params=(), fetch=None):
     conn, db_type = get_conn()
@@ -95,7 +90,11 @@ def execute(query, params=(), fetch=None):
         print(f"DB Error: {e} | Query: {query[:80]}")
         return None
     finally:
-        conn.close()
+        if DATABASE_URL and _pool:
+            try: _pool.putconn(conn)
+            except: pass
+        elif not DATABASE_URL:
+            pass  # SQLite connection is persistent
 
 # ── Init ──────────────────────────────────────────────────────────────
 
