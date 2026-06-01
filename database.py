@@ -28,16 +28,41 @@ def progress_bar(current_xp):
     bar      = "█" * filled + "░" * (10 - filled)
     return f"[{bar}] {progress}/{needed} XP"
 
-# ── Connection ────────────────────────────────────────────────────────
+# ── Connection pooling ─────────────────────────────────────────────────
+import threading
+_local      = threading.local()
+_pool       = None
+_pool_lock  = threading.Lock()
+_DB_TYPE    = "pg" if DATABASE_URL else "sqlite"
+
+def _get_pool():
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                from psycopg2 import pool as pgpool
+                _pool = pgpool.ThreadedConnectionPool(
+                    minconn=2, maxconn=10,
+                    dsn=DATABASE_URL, sslmode="require", connect_timeout=10
+                )
+    return _pool
+
 def get_conn():
     if DATABASE_URL:
-        import psycopg2
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require", connect_timeout=10)
+        # Reuse per-thread connection from pool
+        conn = getattr(_local, "pg_conn", None)
+        if conn is None or conn.closed:
+            conn = _get_pool().getconn()
+            conn.autocommit = False
+            _local.pg_conn = conn
         return conn, "pg"
     else:
-        import sqlite3
-        conn = sqlite3.connect("casino.db", check_same_thread=False)
-        conn.row_factory = sqlite3.Row
+        conn = getattr(_local, "sqlite_conn", None)
+        if conn is None:
+            import sqlite3
+            conn = sqlite3.connect("casino.db", check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            _local.sqlite_conn = conn
         return conn, "sqlite"
 
 def execute(query, params=(), fetch=None):
@@ -73,6 +98,23 @@ def execute(query, params=(), fetch=None):
         conn.close()
 
 # ── Init ──────────────────────────────────────────────────────────────
+
+def create_indexes():
+    """Add indexes to speed up common queries"""
+    indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_players_uid      ON players(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_players_username  ON players(username)",
+        "CREATE INDEX IF NOT EXISTS idx_players_chips     ON players(chips DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_clan_members_uid  ON clan_members(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_clan_members_clan ON clan_members(clan_id)",
+        "CREATE INDEX IF NOT EXISTS idx_bounties_target   ON bounties(target_id, collected, expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_lottery_date      ON lottery_tickets(draw_date)",
+        "CREATE INDEX IF NOT EXISTS idx_bj_host           ON bj_games(host_id)",
+    ]
+    for sql in indexes:
+        try: execute(sql)
+        except: pass
+
 def init_db():
     execute('''
         CREATE TABLE IF NOT EXISTS groups (
@@ -290,10 +332,19 @@ def add_win(user_id):
 def add_loss(user_id):
     execute("UPDATE players SET losses = COALESCE(losses,0) + 1 WHERE user_id=?", (user_id,))
 
+_bank_limit_cache = {}  # uid -> (limit, timestamp)
+_CACHE_TTL = 60  # seconds
+
 def get_bank_limit(user_id):
+    import time
+    cached = _bank_limit_cache.get(user_id)
+    if cached and time.time() - cached[1] < _CACHE_TTL:
+        return cached[0]
     p = get_player(user_id)
     lvl = (p.get("bank_level") or 0) if p else 0
-    return BANK_LEVELS[lvl]["limit"]
+    limit = BANK_LEVELS[lvl]["limit"]
+    _bank_limit_cache[user_id] = (limit, time.time())
+    return limit
 
 def upgrade_bank(user_id):
     p = get_player(user_id)
