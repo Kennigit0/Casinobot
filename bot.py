@@ -591,16 +591,25 @@ def send_bj_board(gid, chat_id, message_id, game):
             return  # already paid out by another callback
         results = blackjack.resolve(game)
         lines   = [board, "\n\n🏁 *Results:*"]
+        bet = game["bet"]
         for r in results:
-            db.update_chips(r["uid"], r["chips"])
-            if r["chips"] > 0:
+            # Chips were deducted upfront on join, so add back bet to get correct net:
+            # Win: resolve=+bet, payout=+bet+bet=+2bet → net +bet ✅
+            # Lose: resolve=-bet, payout=0 → net -bet ✅
+            # Push: resolve=0, payout=+bet → net 0 ✅
+            payout = r["chips"] + bet
+            if payout > 0:
+                db.update_chips(r["uid"], payout)
                 db.add_xp(r["uid"], Config.XP_BJ_WIN)
                 db.add_win(r["uid"])
                 db.execute("UPDATE players SET bj_wins=COALESCE(bj_wins,0)+1 WHERE user_id=?", (r["uid"],))
-            elif r["chips"] < 0:
+            elif payout == 0:
+                pass  # push or loss — chips already taken upfront
+            else:
                 db.add_loss(r["uid"])
-            sign = "+" if r["chips"] >= 0 else ""
-            lines.append(f"• *{r['name']}*: {r['result']} ({sign}{fmt(r['chips'])})")
+            net  = payout - bet  # net change from player perspective
+            sign = "+" if net >= 0 else ""
+            lines.append(f"• *{r['name']}*: {r['result']} ({sign}{fmt(net)})")
         text   = "\n".join(lines)
         markup = None
     elif cp:
