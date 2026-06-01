@@ -172,15 +172,11 @@ def _show_clan(message, clan, my_mem=None, edit=False, call=None):
     desc    = clan_val(clan, "description") or ""
     leader   = clan_val(clan, "leader_id")
     lvl_info = CLAN_LEVELS[level]
-    # Get count + leader name in one query
-    row_info = db.execute(
-        "SELECT COUNT(cm.user_id) as cnt, p.first_name as lname "
-        "FROM clan_members cm, players p "
-        "WHERE cm.clan_id=? AND p.user_id=?",
-        (cid, leader), fetch="one"
-    )
-    count  = (_rv(row_info,"cnt",0) or 0) if row_info else 0
-    lname  = (_rv(row_info,"lname",1) or "Unknown") if row_info else "Unknown"
+    # Two simple queries — avoids PostgreSQL GROUP BY issues
+    cnt_row = db.execute("SELECT COUNT(*) as cnt FROM clan_members WHERE clan_id=?", (cid,), fetch="one")
+    count   = (_rv(cnt_row,"cnt",0) or 0) if cnt_row else 0
+    ldr_row = db.execute("SELECT first_name FROM players WHERE user_id=?", (leader,), fetch="one")
+    lname   = (_rv(ldr_row,"first_name",0) or "Unknown") if ldr_row else "Unknown"
 
     next_cost = CLAN_LEVELS.get(level+1, {}).get("upgrade_cost")
     next_str  = f"{next_cost} 💎 gems" if next_cost else "MAX"

@@ -95,6 +95,14 @@ def get_all_tickets_today():
     ) or []
     return [(_row_val(r,"user_id",0), _row_val(r,"tickets",1)) for r in rows]
 
+def get_tickets_for_date(date_str):
+    """Get all tickets for a specific draw date"""
+    rows = db.execute(
+        "SELECT user_id, tickets FROM lottery_tickets WHERE draw_date=?",
+        (date_str,), fetch="all"
+    ) or []
+    return [(_row_val(r,"user_id",0), _row_val(r,"tickets",1)) for r in rows]
+
 def get_total_tickets_today():
     return sum(t for _, t in get_all_tickets_today())
 
@@ -215,16 +223,18 @@ def cb_lottery(call):
 
 # ── Draw logic ────────────────────────────────────────────────────────
 def run_draw():
-    rows = get_all_tickets_today()
+    # Draw happens after midnight — tickets were bought on PREVIOUS day
+    yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    rows = get_tickets_for_date(yesterday)
     if not rows:
         reset_jackpot()
-        print("🎟️ No tickets sold today, jackpot reset")
+        print(f"🎟️ No tickets sold for {yesterday}, jackpot reset")
         return
 
     jackpot = get_jackpot()
     pool    = []
     for uid, tickets in rows:
-        pool.extend([uid] * tickets)
+        pool.extend([uid] * int(tickets))
 
     winner_id     = random.choice(pool)
     winner        = db.get_player(winner_id)
@@ -249,7 +259,7 @@ def run_draw():
 
     reset_jackpot()
     # Save last winner
-    winner_val = f"{winner_name}|{jackpot}|{datetime.utcnow().strftime('%Y-%m-%d')}"
+    winner_val = f"{winner_name}|{jackpot}|{yesterday}"
     existing = db.execute("SELECT key FROM lottery_state WHERE key='last_winner'", fetch="one")
     if existing:
         db.execute("UPDATE lottery_state SET value=? WHERE key='last_winner'", (winner_val,))
