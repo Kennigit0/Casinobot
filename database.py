@@ -1,5 +1,5 @@
 import os, json, math
-from datetime import datetime, date, timedelta
+from datetime import datetime, timezone, date, timedelta
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -459,7 +459,7 @@ def has_active_bj_game(user_id):
     return row is not None
 
 def save_bj_game(game_id, chat_id, message_id, host_id, bet, data):
-    from datetime import datetime
+    from datetime import datetime, timezone
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     execute("""INSERT INTO bj_games (game_id,chat_id,message_id,host_id,bet,state,data)
                VALUES (?,?,?,?,?,?,?) ON CONFLICT (game_id) DO UPDATE SET state=EXCLUDED.state, data=EXCLUDED.data""",

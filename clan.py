@@ -13,7 +13,7 @@ Commands:
   /clan top               — clan leaderboard
 """
 import random, threading, time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from telebot import types
 import database as db
 import gems as gems_mod

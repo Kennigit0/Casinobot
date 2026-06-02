@@ -1,5 +1,5 @@
 """bounty.py — Bounty System"""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from telebot import types
 import database as db
 

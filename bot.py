@@ -944,7 +944,7 @@ def cb_coinflip(call):
 
 # ── Auto-cleanup stale BJ games + start polling ───────────────────────
 if __name__ == "__main__":
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     import json
     stale_time = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30)).isoformat()
     stale = db.execute(

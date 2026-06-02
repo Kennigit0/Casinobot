@@ -1,6 +1,6 @@
 """lottery.py — Daily Lottery System"""
 import random, threading, time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from telebot import types
 import database as db
 
