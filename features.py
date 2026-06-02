@@ -996,7 +996,7 @@ def cmd_heist(message):
         count   = len(players)
         chance  = min(0.25 + (count * 0.15), 0.85)
         if random.random() < chance:
-            reward = int(h["bet"] * count * random.uniform(2.5, 5))
+            reward = min(int(h["bet"] * count * random.uniform(2.5, 5)), 10_000_000)  # cap at 10M
             for uid, _ in players:
                 db.update_chips(uid, reward)
                 db.add_xp(uid, Config.XP_HEIST)
@@ -1060,6 +1060,7 @@ def cmd_gift(message):
     try: amount = int(args[1].replace(",", ""))
     except: _bot.reply_to(message, "❌ Invalid amount."); return
     if amount < 100: _bot.reply_to(message, "❌ Minimum gift is *100* chips."); return
+    if amount > 10_000_000: _bot.reply_to(message, "❌ Maximum gift is *10,000,000* chips per transfer."); return
     if sender["chips"] < amount: _bot.reply_to(message, f"❌ Not enough chips!"); return
     db.update_chips(sender_id, -amount)
     db.update_chips(receiver_user.id, amount)

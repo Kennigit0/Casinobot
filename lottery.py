@@ -58,7 +58,7 @@ def reset_jackpot():
     db.execute("UPDATE lottery_state SET value=? WHERE key='jackpot'", (str(MIN_JACKPOT),))
 
 def get_draw_date():
-    return datetime.utcnow().strftime("%Y-%m-%d")
+    return datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d")
 
 # ── Ticket helpers ────────────────────────────────────────────────────
 def get_tickets_today(user_id):
@@ -127,7 +127,7 @@ def _show_lottery(message, uid, edit=False, call=None):
     jackpot       = get_jackpot()
     my_tickets    = get_tickets_today(uid)
     total_tickets = get_total_tickets_today()
-    now           = datetime.utcnow()
+    now           = datetime.now(timezone.utc).replace(tzinfo=None)
     midnight      = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     diff          = midnight - now
     hrs           = int(diff.total_seconds() // 3600)
@@ -224,7 +224,7 @@ def cb_lottery(call):
 # ── Draw logic ────────────────────────────────────────────────────────
 def run_draw():
     # Draw happens after midnight — tickets were bought on PREVIOUS day
-    yesterday = (datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)).strftime("%Y-%m-%d")
     rows = get_tickets_for_date(yesterday)
     if not rows:
         reset_jackpot()
@@ -273,7 +273,7 @@ def start_scheduler():
         last_draw_date = None
         while True:
             try:
-                now  = datetime.utcnow()
+                now  = datetime.now(timezone.utc).replace(tzinfo=None)
                 today = now.strftime("%Y-%m-%d")
                 # Draw at midnight UTC (00:00-00:02 window)
                 is_draw_time = now.hour == 0 and now.minute < 2

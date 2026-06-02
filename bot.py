@@ -946,7 +946,7 @@ def cb_coinflip(call):
 if __name__ == "__main__":
     from datetime import datetime, timedelta
     import json
-    stale_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
+    stale_time = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=30)).isoformat()
     stale = db.execute(
         "SELECT game_id, bet, data FROM bj_games WHERE created_at < ? OR created_at IS NULL",
         (stale_time,), fetch="all"

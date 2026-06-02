@@ -616,46 +616,6 @@ def cmd_inventory(message):
 # ── Rbet ─────────────────────────────────────────────────────────────
 active_rbets = {}
 
-def cmd_rbet(message):
-    p = db.get_player(message.from_user.id)
-    if not p: _bot.reply_to(message, "❗ Register first with /start"); return
-    uid = message.from_user.id
-    if uid in active_rbets:
-        game   = active_rbets[uid]
-        prize  = game["prize"]
-        markup = types.InlineKeyboardMarkup()
-        markup.add(
-            types.InlineKeyboardButton("🎲 Risk It!", callback_data=f"rbet_risk_{uid}"),
-            types.InlineKeyboardButton(f"💰 Take {fmt(prize)}", callback_data=f"rbet_take_{uid}")
-        )
-        _bot.reply_to(message,
-            f"🎲 *Rbet Active!*\n\nPrize: *{fmt(prize)}* chips\nRounds survived: *{game['rounds']}*\n\n"
-            f"🌻 80% → prize grows | 🐍 20% → lose all!", reply_markup=markup); return
-
-    args = message.text.split()
-    if len(args) < 2:
-        _bot.reply_to(message,
-            "🎲 *Risk Bet (Rbet)*\n\nUsage: `/rbet [amount]`\n\n"
-            "🌻 80% chance → prize grows\n🐍 20% chance → lose everything!\n💰 `/rtake` to cash out safely"); return
-    try: bet = int(args[1].replace(",", ""))
-    except: _bot.reply_to(message, "❌ Invalid amount."); return
-
-    min_bet = max(1, int(p["chips"] * 0.15))
-    if bet < min_bet: _bot.reply_to(message, f"❌ Minimum bet: *{fmt(min_bet)}* chips (15% of balance)"); return
-    if p["chips"] < bet: _bot.reply_to(message, f"❌ Not enough chips!"); return
-
-    db.update_chips(uid, -bet)
-    active_rbets[uid] = {"prize": bet, "rounds": 0, "chat_id": message.chat.id}
-    markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton("🎲 Risk It!", callback_data=f"rbet_risk_{uid}"),
-        types.InlineKeyboardButton(f"💰 Take {fmt(bet)}", callback_data=f"rbet_take_{uid}")
-    )
-    _bot.reply_to(message,
-        f"🎲 *Rbet Started!* Prize: *{fmt(bet)}* chips\n\n"
-        f"⚠️ 🌻 80% → prize grows | 🐍 20% → lose everything!\n\n"
-        f"/rbet → risk | /rtake → cash out", reply_markup=markup)
-
 def cb_rbet(call):
     parts  = call.data.split("_")
     action = parts[1]

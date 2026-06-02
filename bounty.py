@@ -23,7 +23,7 @@ def init_bounty_db():
     print("✅ Bounty loaded")
 
 def get_active_bounties(target_id):
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     rows = db.execute(
         "SELECT id, placer_id, amount, placed_at FROM bounties WHERE target_id=? AND collected=0 AND expires_at>?",
         (target_id, now), fetch="all"
@@ -42,7 +42,7 @@ def get_total_bounty(target_id):
     return sum(r[2] for r in rows)
 
 def get_all_active_bounties():
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     rows = db.execute(
         "SELECT target_id, SUM(amount) as total FROM bounties WHERE collected=0 AND expires_at>? GROUP BY target_id ORDER BY total DESC",
         (now,), fetch="all"
@@ -56,7 +56,7 @@ def get_all_active_bounties():
     return result
 
 def collect_bounty(target_id):
-    now  = datetime.utcnow().isoformat()
+    now  = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     rows = db.execute(
         "SELECT id, amount FROM bounties WHERE target_id=? AND collected=0 AND expires_at>?",
         (target_id, now), fetch="all"
@@ -138,7 +138,7 @@ def cmd_bounty(message):
 
     # Place bounty
     db.update_chips(uid, -amount)
-    now     = datetime.utcnow()
+    now     = datetime.now(timezone.utc).replace(tzinfo=None)
     expires = (now + timedelta(hours=24)).isoformat()
     db.execute(
         "INSERT INTO bounties (target_id, placer_id, amount, placed_at, expires_at) VALUES (?,?,?,?,?)",

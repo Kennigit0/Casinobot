@@ -460,7 +460,7 @@ def has_active_bj_game(user_id):
 
 def save_bj_game(game_id, chat_id, message_id, host_id, bet, data):
     from datetime import datetime
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     execute("""INSERT INTO bj_games (game_id,chat_id,message_id,host_id,bet,state,data)
                VALUES (?,?,?,?,?,?,?) ON CONFLICT (game_id) DO UPDATE SET state=EXCLUDED.state, data=EXCLUDED.data""",
             (game_id, chat_id, message_id, host_id, bet, data.get("state","waiting"), json.dumps(data)))

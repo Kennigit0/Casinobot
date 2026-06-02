@@ -236,7 +236,7 @@ def _clan_create(message, p, args):
         _bot.reply_to(message, f"❌ A clan named *{name}* already exists!"); return
 
     gems_mod.spend_gems(uid, CREATE_COST_GEMS)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     db.execute(
         "INSERT INTO clans (name, leader_id, created_at) VALUES (?,?,?)",
         (name, uid, now)
@@ -277,7 +277,7 @@ def _clan_join(message, p, args):
 
     db.execute(
         "INSERT INTO clan_members (user_id, clan_id, role, joined_at) VALUES (?,?,?,?)",
-        (uid, cid, "member", datetime.utcnow().isoformat())
+        (uid, cid, "member", datetime.now(timezone.utc).replace(tzinfo=None).isoformat())
     )
     _bot.reply_to(message,
         f"⚔️ Joined *{name}*!\n\n"
@@ -796,12 +796,12 @@ def _run_raid(clan_id, chat_id, msg_id):
         db.execute("UPDATE clans SET xp=xp+? WHERE id=?", (100 * raiders_count, clan_id))
         db.execute(
             "INSERT INTO clan_raids (clan_id, boss_name, result, reward, raiders, started_at) VALUES (?,?,?,?,?,?)",
-            (clan_id, boss["name"], "win", base_reward, raiders_count, datetime.utcnow().isoformat())
+            (clan_id, boss["name"], "win", base_reward, raiders_count, datetime.now(timezone.utc).replace(tzinfo=None).isoformat())
         )
     else:
         db.execute(
             "INSERT INTO clan_raids (clan_id, boss_name, result, reward, raiders, started_at) VALUES (?,?,?,?,?,?)",
-            (clan_id, boss["name"], "loss", 0, len(raid["raiders"]), datetime.utcnow().isoformat())
+            (clan_id, boss["name"], "loss", 0, len(raid["raiders"]), datetime.now(timezone.utc).replace(tzinfo=None).isoformat())
         )
 
     text, _ = _render_raid(raid)
@@ -829,7 +829,7 @@ def _clan_raid(message, p):
     last = get_last_raid(clan_id)
     if last:
         last_dt = datetime.fromisoformat(last)
-        diff    = (datetime.utcnow() - last_dt).total_seconds()
+        diff    = (datetime.now(timezone.utc).replace(tzinfo=None) - last_dt).total_seconds()
         if diff < RAID_COOLDOWN:
             remaining = int(RAID_COOLDOWN - diff)
             hrs  = remaining // 3600
