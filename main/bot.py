@@ -40,17 +40,25 @@ pending_bj = {}
 # ── /start ────────────────────────────────────────────────────────────
 @bot.message_handler(commands=["start"])
 def cmd_start(message):
-    # Only allow /start in private DM
-    if message.chat.type != "private":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton(
-            "🎰 Start Bot", url=f"https://t.me/{bot.get_me().username}?start=go"))
-        bot.reply_to(message,
-            "👋 Hey! To register and play, start me in *private DM* first!",
-            reply_markup=markup)
-        return
     uid = message.from_user.id
     existing = db.get_player(uid)
+    
+    if not existing and message.chat.type != "private":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🎰 Start Bot", url=f"https://t.me"))
+        bot.reply_to(message, "👋 Hey! To register and play, start me in private DM first!", reply_markup=markup)
+        return
+        
+    if existing:
+        level = db.xp_to_level(existing.get("xp"))
+        title = db.get_title(level)
+        bot.reply_to(message,
+            f"🎰 Welcome back, *{name(message.from_user)}*!\n"
+            f"💰 Balance: *{fmt(existing['chips'])}* chips\n"
+            f"⭐ Level: *{level}* — {title}\n\n"
+            "Type /help to see all commands."
+        )
+        return
     if existing:
         level = db.xp_to_level(existing.get("xp") or 0)
         title = db.get_title(level)
