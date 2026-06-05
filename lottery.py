@@ -136,12 +136,12 @@ def _show_lottery(message, uid, edit=False, call=None):
 
     markup = types.InlineKeyboardMarkup()
     markup.row(
-        types.InlineKeyboardButton("🎟️ Buy 1 — 5,000",    callback_data="lottery_buy_1"),
-        types.InlineKeyboardButton("🎟️ Buy 5 — 25,000",   callback_data="lottery_buy_5"),
+        types.InlineKeyboardButton("🎟️ Buy 1 — 5,000",    callback_data=f"lottery_buy_1_{uid}"),
+        types.InlineKeyboardButton("🎟️ Buy 5 — 25,000",   callback_data=f"lottery_buy_5_{uid}"),
     )
     markup.row(
-        types.InlineKeyboardButton("🎟️ Buy 10 — 50,000",  callback_data="lottery_buy_10"),
-        types.InlineKeyboardButton("📊 Leaderboard",       callback_data="lottery_lb"),
+        types.InlineKeyboardButton("🎟️ Buy 10 — 50,000",  callback_data=f"lottery_buy_10_{uid}"),
+        types.InlineKeyboardButton("📊 Leaderboard",       callback_data=f"lottery_lb_{uid}"),
     )
     text = (
         f"🎰 *Daily Lottery*\n\n"
@@ -190,7 +190,7 @@ def _do_buy(message_or_call, uid, p, count, is_callback=False):
         _show_lottery(None, uid, edit=True, call=message_or_call)
     else:
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🎟️ Buy More", callback_data="lottery_buy_1"))
+        markup.add(types.InlineKeyboardButton("🎟️ Buy More", callback_data=f"lottery_buy_1_{uid}"))
         _bot.reply_to(message_or_call,
             f"🎟️ *Bought {can_buy} ticket{'s' if can_buy > 1 else ''}!*\n\n"
             f"💸 Paid: *{fmt(cost)}* chips\n"
@@ -199,11 +199,20 @@ def _do_buy(message_or_call, uid, p, count, is_callback=False):
             f"🕛 Draw at midnight UTC — good luck! 🍀", reply_markup=markup)
 
 def cb_lottery(call):
-    uid = call.from_user.id
-    p   = db.get_player(uid)
+    uid  = call.from_user.id
+    data = call.data
+    p    = db.get_player(uid)
     if not p: _bot.answer_callback_query(call.id, "Register first! /start"); return
 
-    if call.data == "lottery_lb":
+    # Verify uid matches button owner (except leaderboard which is public)
+    parts_l = data.split("_")
+    if len(parts_l) >= 3 and parts_l[-1].isdigit():
+        if str(uid) != parts_l[-1]:
+            _bot.answer_callback_query(call.id, "❌ This is not your lottery!", show_alert=True); return
+        # Strip uid from data for matching
+        data = "_".join(parts_l[:-1])
+
+    if data == "lottery_lb":
         rows = get_all_tickets_today()
         total = sum(t for _, t in rows)
         rows_sorted = sorted(rows, key=lambda x: x[1], reverse=True)[:10]
@@ -218,7 +227,7 @@ def cb_lottery(call):
         _bot.send_message(call.message.chat.id, "\n".join(lines))
         return
 
-    count = int(call.data.split("_")[-1])
+    count = int(data.split("_")[-1])
     _do_buy(call, uid, p, count, is_callback=True)
 
 # ── Draw logic ────────────────────────────────────────────────────────
