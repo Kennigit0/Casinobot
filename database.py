@@ -280,7 +280,7 @@ def register_player(user_id, username, first_name):
 WALLET_MAX = 999_999_999
 
 def update_chips(user_id, amount):
-    execute("UPDATE players SET chips=GREATEST(LEAST(chips+?, ?), 0) WHERE user_id=?", (amount, WALLET_MAX, user_id))
+    execute("UPDATE players SET chips=GREATEST(chips+?, 0) WHERE user_id=?", (amount, user_id))
     if amount > 0:
         execute("UPDATE players SET total_earned=COALESCE(total_earned,0)+? WHERE user_id=?", (amount, user_id))
     p = get_player(user_id)
@@ -294,7 +294,7 @@ def claim_daily(user_id, is_vip=False):
     if p.get("last_daily") == today:
         return False, 0, "Already claimed today. Come back tomorrow!"
     bonus = Config.VIP_DAILY_BONUS if is_vip else Config.DAILY_BONUS
-    execute("UPDATE players SET last_daily=?, chips=LEAST(chips+?, ?) WHERE user_id=?", (today, bonus, WALLET_MAX, user_id))
+    execute("UPDATE players SET last_daily=?, chips=chips+? WHERE user_id=?", (today, bonus, user_id))
     add_xp(user_id, Config.XP_DAILY)
     return True, bonus, ""
 
@@ -393,7 +393,7 @@ def bank_deposit(user_id, amount):
     return True, amount
 
 def bank_withdraw(user_id, amount):
-    execute("UPDATE players SET bank=bank-?, chips=GREATEST(LEAST(chips+?, ?), 0) WHERE user_id=?", (amount, amount, WALLET_MAX, user_id))
+    execute("UPDATE players SET bank=bank-?, chips=GREATEST(chips+?, 0) WHERE user_id=?", (amount, amount, user_id))
 
 def claim_interest(user_id):
     p = get_player(user_id)

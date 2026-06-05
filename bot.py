@@ -40,14 +40,24 @@ pending_bj = {}
 # ── /start ────────────────────────────────────────────────────────────
 @bot.message_handler(commands=["start"])
 def cmd_start(message):
-    # Only allow /start in private DM
+    # Handle /start in group chats
     if message.chat.type != "private":
-        markup = types.InlineKeyboardMarkup()
+        uid      = message.from_user.id
+        existing = db.get_player(uid)
+        markup   = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(
-            "🎰 Start Bot", url=f"https://t.me/{bot.get_me().username}?start=go"))
-        bot.reply_to(message,
-            "👋 Hey! To register and play, start me in *private DM* first!",
-            reply_markup=markup)
+            "🎰 Open Bot", url=f"https://t.me/{bot.get_me().username}?start=go"))
+        if existing:
+            level = db.xp_to_level(existing.get("xp") or 0)
+            bot.reply_to(message,
+                f"👋 Welcome back *{existing['first_name']}*!\n"
+                f"⭐ Level *{level}* | 💰 *{fmt(existing['chips'])}* chips\n\n"
+                f"Tap below to open your casino dashboard!",
+                reply_markup=markup)
+        else:
+            bot.reply_to(message,
+                "👋 Hey! To register and play, start me in *private DM* first!",
+                reply_markup=markup)
         return
     uid = message.from_user.id
     existing = db.get_player(uid)
