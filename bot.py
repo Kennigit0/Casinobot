@@ -101,104 +101,167 @@ def cb_age(call):
         "Type /help for all commands!",
         call.message.chat.id, call.message.message_id)
 
-# ── /help ─────────────────────────────────────────────────────────────
+# ── /help (paginated) ─────────────────────────────────────────────────
+
+HELP_PAGES = [
+    {
+        "title": "👤 Account & Bank",
+        "emoji": "👤",
+        "commands": [
+            ("/start", "Register & age verification"),
+            ("/profile", "Your full profile & stats"),
+            ("/level", "Level, XP & progress bar"),
+            ("/balance", "Wallet balance"),
+            ("/daily", "Claim daily bonus chips"),
+            ("/leaderboard", "Top 10 richest players"),
+            ("/vip", "VIP membership info"),
+            ("", ""),
+            ("/bank", "View wallet & bank balance"),
+            ("/deposit [amount]", "Save chips safely"),
+            ("/withdraw [amount]", "Take chips out"),
+            ("/interest", "Claim 3% daily interest"),
+            ("/bankupgrade", "Upgrade bank capacity"),
+        ]
+    },
+    {
+        "title": "🎮 Casino Games",
+        "emoji": "🎮",
+        "commands": [
+            ("/slots [bet]", "🎰 Spin the slot machine"),
+            ("/dice [bet]", "🎲 Dice challenge vs player"),
+            ("/bj [bet]", "🃏 Multiplayer blackjack"),
+            ("/roulette [bet]", "🎡 Roulette wheel"),
+            ("/crash", "🚀 Multiplayer crash game"),
+            ("/coinflip [amount]", "🪙 1v1 heads or tails"),
+        ]
+    },
+    {
+        "title": "🌍 Mini Games",
+        "emoji": "🌍",
+        "commands": [
+            ("/wordgame", "📝 Guess the word"),
+            ("/scramble", "🔤 Unscramble the word"),
+            ("/emojiguess", "😎 Guess the emoji"),
+            ("/trivia", "🧠 Answer trivia questions"),
+            ("", "🔥 Build streaks for bonus rewards!"),
+        ]
+    },
+    {
+        "title": "💼 Jobs & Street",
+        "emoji": "💼",
+        "commands": [
+            ("/work", "💼 Random job (3min cooldown)"),
+            ("/crime", "🦹 Risky crime (15min cooldown)"),
+            ("/heist [bet]", "🔫 Group heist (30min cooldown)"),
+            ("/rob", "👊 Reply to rob someone (2hr)"),
+            ("/gift [amount]", "🎁 Reply to gift chips"),
+            ("/bounty @user [amount]", "🎯 Place a bounty"),
+            ("/mybounty", "Check bounties on you"),
+            ("/bounties", "See all active bounties"),
+        ]
+    },
+    {
+        "title": "🎣 Activities",
+        "emoji": "🎣",
+        "commands": [
+            ("/fish", "🎣 Fish 10 items (Level 5)"),
+            ("/mine", "⛏️ Mine 10 ores (Level 10)"),
+            ("/farm", "🌾 Farm 10 crops (Level 15)"),
+            ("/shop", "🛒 Buy better tools"),
+            ("/inventory", "🎒 Your tools inventory"),
+            ("", "Better tools = more chips + rare finds!"),
+        ]
+    },
+    {
+        "title": "💎 Gems & Achievements",
+        "emoji": "💎",
+        "commands": [
+            ("/gems", "💎 Your gem balance"),
+            ("/gemshop", "🛍️ Spend gems on perks"),
+            ("/gemgift [amount]", "Reply to gift gems"),
+            ("/achievements", "🏆 View your achievements"),
+            ("", "Earn gems by unlocking achievements!"),
+        ]
+    },
+    {
+        "title": "⚔️ Clan System",
+        "emoji": "⚔️",
+        "commands": [
+            ("/clan", "⚔️ Your clan info"),
+            ("/clan create [name]", "Create a clan (50 💎)"),
+            ("/clan join [name]", "Join a clan"),
+            ("/clan boss", "Start a boss raid"),
+            ("/clan deposit [amount]", "Add to clan bank"),
+            ("/clan top", "Clan leaderboard"),
+            ("/clan heist", "Clan heist"),
+        ]
+    },
+    {
+        "title": "🎟️ Lottery & Social",
+        "emoji": "🎟️",
+        "commands": [
+            ("/lottery", "🎟️ Daily jackpot lottery"),
+            ("/lottery buy [n]", "Buy n tickets (max 10/day)"),
+            ("/lastlottery", "See last lottery winner"),
+            ("", ""),
+            ("/marry", "💍 Reply to propose"),
+            ("/divorce", "💔 End marriage"),
+            ("/bjcancel", "❌ Cancel your BJ table"),
+            ("/crash", "🚀 Start a crash round"),
+        ]
+    },
+]
+
+def _help_text(page_idx):
+    page = HELP_PAGES[page_idx]
+    total = len(HELP_PAGES)
+    lines = [f"{page['emoji']} *{page['title']}*  —  Page {page_idx+1}/{total}\n"]
+    for cmd, desc in page["commands"]:
+        if cmd == "":
+            lines.append(f"\n_{desc}_" if desc else "")
+        else:
+            lines.append(f"`{cmd}` — {desc}")
+    return "\n".join(l for l in lines if l is not None)
+
+def _help_markup(page_idx):
+    total = len(HELP_PAGES)
+    markup = types.InlineKeyboardMarkup()
+    nav = []
+    if page_idx > 0:
+        nav.append(types.InlineKeyboardButton("◀ Prev", callback_data=f"help_{page_idx-1}"))
+    nav.append(types.InlineKeyboardButton(f"{page_idx+1}/{total}", callback_data="help_noop"))
+    if page_idx < total - 1:
+        nav.append(types.InlineKeyboardButton("Next ▶", callback_data=f"help_{page_idx+1}"))
+    markup.row(*nav)
+    # Page jump buttons
+    jumps = []
+    for i, p in enumerate(HELP_PAGES):
+        jumps.append(types.InlineKeyboardButton(p["emoji"], callback_data=f"help_{i}"))
+    markup.row(*jumps[:4])
+    if len(jumps) > 4:
+        markup.row(*jumps[4:])
+    return markup
+
+
 @bot.message_handler(commands=["help"])
 def cmd_help(message):
-    bot.reply_to(message,
-        "🎰 *Casino Bot V5 — All Commands*\n\n"
+    markup = _help_markup(0)
+    bot.reply_to(message, _help_text(0), reply_markup=markup)
 
-        "👤 *Account*\n"
-        "/start — Register with age verification\n"
-        "/profile — Full profile with level & stats\n"
-        "/level — View level, XP & progress bar\n"
-        "/balance — Your wallet balance\n"
-        "/daily — Claim daily bonus chips\n"
-        "/leaderboard — Top 10 richest players\n"
-        "/vip — VIP membership info\n"
-        "/terms — Terms of service\n\n"
+@bot.callback_query_handler(func=lambda c: c.data.startswith("help_"))
+def cb_help(call):
+    data = call.data
+    if data == "help_noop":
+        bot.answer_callback_query(call.id); return
+    page_idx = int(data.split("_")[1])
+    page_idx = max(0, min(page_idx, len(HELP_PAGES)-1))
+    bot.answer_callback_query(call.id)
+    try:
+        bot.edit_message_text(_help_text(page_idx), call.message.chat.id,
+            call.message.message_id, reply_markup=_help_markup(page_idx),
+            parse_mode="Markdown")
+    except: pass
 
-        "🏦 *Bank*\n"
-        "/bank — View wallet + bank balance\n"
-        "/deposit `[amount]` — Save chips safely\n"
-        "/withdraw `[amount]` — Take chips out\n"
-        "/interest — Claim 3% daily interest\n\n"
-
-        "💼 *Jobs*\n"
-        "/work — Random job *(3min cooldown)*\n"
-        "/crime — Risky crime *(15min cooldown)*\n"
-        "/heist `[bet]` — Group heist *(30min cooldown)*\n\n"
-
-        "🔫 *Street*\n"
-        "/rob — Reply to someone to rob them *(2hr)*\n"
-        "/gift `[amount]` — Reply to gift chips\n"
-        "/lottery — 🎟️ Daily jackpot lottery\n"
-        "/bounty @user [amount] — 🎯 Place a bounty\n"
-        "/mybounty — Check bounties on you\n"
-        "/clan — ⚔️ Clan system\n\n"
-
-        "💍 *Social*\n"
-        "/marry — Reply to propose\n"
-        "/divorce — End marriage\n\n"
-
-        "🎣 *Activities* *(unlock by leveling up!)*\n"
-        "/fish — 🎣 Fish 10 items *(Level 5)*\n"
-        "/mine — ⛏️ Mine 10 ores *(Level 10)*\n"
-        "/farm — 🌾 Farm 10 crops *(Level 15)*\n"
-        "/shop `[fishing/mining/farming]` — Browse tools\n"
-        "/buy `[item]` — Purchase a tool\n"
-        "/equip `[item]` — Equip owned tool\n"
-        "/inventory — View your tools\n\n"
-
-        "🎮 *Casino Games*\n"
-        "/slots `[bet]` — 🎰 Slot machine animation\n"
-        "/dice `[type] [bet]` — 🎲 Dice roll animation\n"
-        "/bj `[bet]` — 🃏 Multiplayer blackjack\n"
-        "/roulette `[type] [value] [bet]` — 🎡 Roulette\n"
-        "/crash — 🚀 Multiplayer crash game\n"
-        "/coinflip [amount] — 🪙 1v1 heads or tails\n\n"
-
-        "*🎲 Dice types:*\n"
-        "`/dice even 1000` `/dice odd 1000`\n"
-        "`/dice high 1000` `/dice low 1000`\n"
-        "`/dice 6 1000` — exact number *(x6)*\n\n"
-
-        "*🎡 Roulette types:*\n"
-        "`/roulette color red 1000`\n"
-        "`/roulette color black 1000`\n"
-        "`/roulette color green 1000` *(x14)*\n"
-        "`/roulette number 17 1000` *(x35)*\n"
-        "`/roulette odd_even odd 1000`\n"
-        "`/roulette dozen 1st 1000`\n\n"
-
-        "*🎣 Fishing Rods:*\n"
-        "🪵 Wooden — Free | Lv.5 | ⏰ 30min\n"
-        "🎣 Basic — 15,000 | Lv.10 | ⏰ 25min\n"
-        "🥈 Silver — 75,000 | Lv.20 | ⏰ 20min\n"
-        "🥇 Golden — 300,000 | Lv.30 | ⏰ 15min\n"
-        "💎 Diamond — 1,500,000 | Lv.40 | ⏰ 10min\n"
-        "🔮 Magic — 6,000,000 | Lv.50 | ⏰ 7min\n"
-        "⭐ Legendary — 30,000,000 | Lv.75 | ⏰ 5min\n\n"
-
-        "*⛏️ Pickaxes:*\n"
-        "🪨 Stone — Free | Lv.10 | ⏰ 30min\n"
-        "⚙️ Iron — 15,000 | Lv.15 | ⏰ 25min\n"
-        "🥈 Silver — 75,000 | Lv.20 | ⏰ 20min\n"
-        "🥇 Gold — 300,000 | Lv.30 | ⏰ 15min\n"
-        "💎 Diamond — 1,500,000 | Lv.40 | ⏰ 10min\n"
-        "🔮 Enchanted — 6,000,000 | Lv.50 | ⏰ 7min\n"
-        "⭐ Legendary — 30,000,000 | Lv.75 | ⏰ 5min\n\n"
-
-        "*🌾 Farming Tools:*\n"
-        "🤲 Bare Hands — Free | Lv.15 | ⏰ 30min\n"
-        "🪚 Basic Hoe — 15,000 | Lv.20 | ⏰ 25min\n"
-        "🥈 Silver Hoe — 75,000 | Lv.25 | ⏰ 20min\n"
-        "🥇 Golden Hoe — 300,000 | Lv.35 | ⏰ 15min\n"
-        "💎 Diamond Hoe — 1,500,000 | Lv.45 | ⏰ 10min\n"
-        "🚜 Magic Tractor — 6,000,000 | Lv.55 | ⏰ 7min\n"
-        "⭐ Legendary Tractor — 30,000,000 | Lv.75 | ⏰ 5min\n\n"
-
-        "💰 *Min bet = 15% of balance | No max bet!*\n"
-        "⏰ *30 sec cooldown between games*")
 
 # ── /balance ──────────────────────────────────────────────────────────
 @bot.message_handler(commands=["balance", "bal", "chips"])
