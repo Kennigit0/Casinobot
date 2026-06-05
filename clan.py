@@ -604,11 +604,11 @@ def register_clan(bot_instance):
 
 # ── Boss Raid System ──────────────────────────────────────────────────
 BOSSES = {
-    1: {"name": "👹 Goblin King",    "hp": 1000,  "entry": 5_000,      "min_reward": 50_000,    "max_reward": 100_000},
-    2: {"name": "🐉 Fire Drake",     "hp": 3000,  "entry": 20_000,     "min_reward": 200_000,   "max_reward": 500_000},
-    3: {"name": "💀 Death Knight",   "hp": 8000,  "entry": 100_000,    "min_reward": 1_000_000, "max_reward": 3_000_000},
-    4: {"name": "🌑 Shadow Demon",   "hp": 20000, "entry": 500_000,    "min_reward": 5_000_000, "max_reward": 10_000_000},
-    5: {"name": "☠️ Ancient Dragon", "hp": 50000, "entry": 2_000_000,  "min_reward": 20_000_000,"max_reward": 50_000_000},
+    1: {"name": "👹 Goblin King",    "hp": 1000,  "entry": 5_000,     "min_gems": 2,   "max_gems": 5},
+    2: {"name": "🐉 Fire Drake",     "hp": 3000,  "entry": 20_000,    "min_gems": 5,   "max_gems": 10},
+    3: {"name": "💀 Death Knight",   "hp": 8000,  "entry": 100_000,   "min_gems": 10,  "max_gems": 20},
+    4: {"name": "🌑 Shadow Demon",   "hp": 20000, "entry": 500_000,   "min_gems": 25,  "max_gems": 50},
+    5: {"name": "☠️ Ancient Dragon", "hp": 50000, "entry": 2_000_000, "min_gems": 60,  "max_gems": 100},
 }
 
 RAID_JOIN_TIME  = 120   # 2 min joining phase
@@ -706,13 +706,12 @@ def _render_raid(raid):
             f"{bar} {pct}\n",
         ]
         if won and raiders:
-            total  = raid.get("total_reward", 0)
-            per    = total // len(raiders)
-            lines += [f"💰 Total reward: *{fmt(total)}* chips",
-                      f"👤 Per raider: *{fmt(per)}* chips\n",
-                      "🎉 *Raid members paid!*"]
+            total = raid.get("total_reward", 0)
+            lines += [f"💎 Gems per raider: *{total}* gems",
+                      f"💰 Entry fee refunded to all!\n",
+                      "🎉 *Victory! Gems awarded to all raiders!*"]
         elif raiders:
-            lines.append("💸 No reward — boss survived!")
+            lines.append("💸 Boss survived — entry fees lost!")
         return "\n".join(lines), None
 
 def _run_raid(clan_id, chat_id, msg_id):
@@ -779,16 +778,16 @@ def _run_raid(clan_id, chat_id, msg_id):
     boss          = raid["boss"]
 
     if won:
-        base_reward   = random.randint(boss["min_reward"], boss["max_reward"])
+        gem_reward    = random.randint(boss["min_gems"], boss["max_gems"])
         raiders_count = len(raid["raiders"])
-        raid["total_reward"] = base_reward
+        raid["total_reward"] = gem_reward
 
         for uid, r in raid["raiders"].items():
-            penalty  = r.get("penalty", 0)
-            share    = base_reward // raiders_count
-            share    = int(share * (1 - penalty / 100))
-            entry    = raid["boss"]["entry"]
-            db.update_chips(uid, share + entry)  # reward + entry refund
+            penalty    = r.get("penalty", 0)
+            gems_share = max(1, int(gem_reward * (1 - penalty / 100)))
+            entry      = raid["boss"]["entry"]
+            db.update_chips(uid, entry)      # refund entry chips
+            gems_mod.add_gems(uid, gems_share)  # pay gems
             db.add_xp(uid, 100)
 
         # Save to DB and add clan XP
@@ -855,15 +854,15 @@ def _clan_raid(message, p):
     )
     boss_name = boss['name']
     boss_hp   = boss['hp']
-    min_rew   = boss['min_reward']
-    max_rew   = boss['max_reward']
+    min_gems  = boss['min_gems']
+    max_gems  = boss['max_gems']
     _bot.reply_to(message,
         f"⚔️ *Boss Raid — {boss_name}*\n\n"
         f"❤️ HP: *{boss_hp:,}*\n"
         f"💰 Entry fee: *{fmt(entry)}* chips per raider\n"
-        f"🏆 Reward: *{fmt(min_rew)}* – *{fmt(max_rew)}* chips\n"
+        f"💎 Reward: *{min_gems}* – *{max_gems}* gems per raider\n"
         f"🕐 Joining: 2 min | ⚔️ Rounds: 3 × 60s\n\n"
-        "Entry fee deducted when joining. Refunded on win.\n"
+        "Entry refunded on win. Gems paid to all raiders!\n"
         "Ready to start?",
         reply_markup=markup_confirm)
     # Thread is started in _cb_raid_confirm after user confirms
