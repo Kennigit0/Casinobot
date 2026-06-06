@@ -61,6 +61,17 @@ def cmd_start(message):
                 reply_markup=markup)
         return
     uid = message.from_user.id
+    # Check for referral param
+    referrer_id = None
+    args = message.text.split()
+    if len(args) > 1 and args[1].startswith("ref_"):
+        try:
+            referrer_id = int(args[1].replace("ref_",""))
+            if referrer_id == uid: referrer_id = None
+        except: pass
+    if referrer_id:
+        _pending_referrals[uid] = referrer_id
+
     existing = db.get_player(uid)
     if existing:
         level = db.xp_to_level(existing.get("xp") or 0)
@@ -92,6 +103,20 @@ def cb_age(call):
         bot.edit_message_text("❌ Sorry, you must be 18+ to use this bot.",
                               call.message.chat.id, call.message.message_id); return
     db.register_player(uid, call.from_user.username, call.from_user.first_name)
+    # Handle referral reward if applicable
+    referrer_id_pending = _pending_referrals.pop(uid, None)
+    if referrer_id_pending:
+        referrer = db.get_player(call._referrer_id)
+        if referrer and db.save_referral(referrer_id_pending, uid):
+            import gems as _gm
+            _gm.add_gems(referrer_id_pending, 3)
+            _gm.add_gems(uid, 1)
+            try:
+                bot.send_message(referrer_id_pending,
+                    f"🎉 *Referral reward!*\n\n"
+                    f"*{name(call.from_user)}* joined using your referral!\n"
+                    f"💎 You earned *3 gems*!")
+            except: pass
     bot.edit_message_text(
         f"✅ *Welcome, {name(call.from_user)}!*\n\n"
         f"🎁 You received *{fmt(Config.STARTING_CHIPS)}* starting chips!\n\n"
@@ -786,6 +811,7 @@ def keep_db_alive():
 if __name__ == "__main__":
     print("🎰 Casino Bot V5 starting...")
     db.init_db()
+    db.init_referral_db()
     keep_db_alive()
     print("✅ Database ready")
     features.register_features(bot)
@@ -878,6 +904,7 @@ if __name__ == "__main__":
 
 
 # ── /coinflip ──────────────────────────────────────────────────────────
+_pending_referrals = {}  # uid -> referrer_id
 pending_flips = {}  # chat_id -> {host_id, bet, host_choice, msg_id}
 
 @bot.message_handler(commands=["coinflip", "cf", "headstails"])
@@ -1018,6 +1045,34 @@ def cb_coinflip(call):
                 cid, call.message.message_id, parse_mode="Markdown"
             )
         except: pass
+
+
+# ── /referral ──────────────────────────────────────────────────────────
+@bot.message_handler(commands=["referral", "ref", "invite"])
+def cmd_referral(message):
+    uid = message.from_user.id
+    p   = db.get_player(uid)
+    if not p: bot.reply_to(message, "❗ Register first with /start"); return
+
+    bot_info   = bot.get_me()
+    ref_link   = f"https://t.me/{bot_info.username}?start=ref_{uid}"
+    ref_count  = db.get_referral_count(uid)
+    import gems as gems_mod3
+    my_gems    = gems_mod3.get_gems(uid)
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🔗 Share Referral Link", url=f"https://t.me/share/url?url={ref_link}&text=Join%20Kenni%27s%20Casino%20and%20get%201%20free%20gem!"))
+
+    bot.reply_to(message,
+        f"🔗 *Your Referral Link*\n\n"
+        f"`{ref_link}`\n\n"
+        f"💎 *Rewards:*\n"
+        f"• You get *3 gems* per referral\n"
+        f"• New player gets *1 gem* on join\n\n"
+        f"👥 Total referrals: *{ref_count}*\n"
+        f"💎 Your gems: *{my_gems}*\n\n"
+        f"Share the link and grow the casino! 🎰",
+        reply_markup=markup)
 
 # ── Auto-cleanup stale BJ games + start polling ───────────────────────
 if __name__ == "__main__":

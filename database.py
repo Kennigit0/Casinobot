@@ -250,6 +250,39 @@ def add_xp(user_id, amount):
 
 # ── Players ───────────────────────────────────────────────────────────
 
+def init_referral_db():
+    execute("""
+        CREATE TABLE IF NOT EXISTS referrals (
+            id          SERIAL PRIMARY KEY,
+            referrer_id BIGINT NOT NULL,
+            referee_id  BIGINT NOT NULL,
+            created_at  TEXT NOT NULL,
+            rewarded    INTEGER DEFAULT 0
+        )
+    """ if get_conn()[1] == "pg" else """
+        CREATE TABLE IF NOT EXISTS referrals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            referrer_id BIGINT NOT NULL,
+            referee_id  BIGINT NOT NULL,
+            created_at  TEXT NOT NULL,
+            rewarded    INTEGER DEFAULT 0
+        )
+    """)
+
+def save_referral(referrer_id, referee_id):
+    """Returns True if saved successfully, False if duplicate"""
+    existing = execute("SELECT id FROM referrals WHERE referee_id=?", (referee_id,), fetch="one")
+    if existing:
+        return False
+    from datetime import datetime, timezone
+    execute("INSERT INTO referrals (referrer_id, referee_id, created_at) VALUES (?,?,?)",
+            (referrer_id, referee_id, datetime.now(timezone.utc).replace(tzinfo=None).isoformat()))
+    return True
+
+def get_referral_count(user_id):
+    row = execute("SELECT COUNT(*) as cnt FROM referrals WHERE referrer_id=?", (user_id,), fetch="one")
+    return (row["cnt"] if isinstance(row, dict) else row[0]) if row else 0
+
 def init_streaks_db():
     execute("""
         CREATE TABLE IF NOT EXISTS player_streaks (
