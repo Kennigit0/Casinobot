@@ -17,6 +17,7 @@ import lottery
 import crash
 import clan
 import bounty
+import poker
 from config import Config
 from games import slots, dice, roulette, blackjack
 
@@ -133,6 +134,7 @@ HELP_PAGES = [
             ("/roulette [bet]", "🎡 Roulette wheel"),
             ("/crash", "🚀 Multiplayer crash game"),
             ("/coinflip [amount]", "🪙 1v1 heads or tails"),
+            ("/poker [min_bet]", "♠️ Texas Hold'em poker"),
         ]
     },
     {
@@ -806,6 +808,8 @@ if __name__ == "__main__":
     bot.register_message_handler(lottery.cmd_drawlottery, commands=["drawlottery"])
     bounty.register_bounty(bot)
     print("✅ Bounty loaded")
+    poker.register_poker(bot)
+    print("✅ Poker loaded")
 
 @bot.message_handler(commands=["bjcancel", "cancelBJ", "bjleave"])
 def cmd_bjcancel(message):
