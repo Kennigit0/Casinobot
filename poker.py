@@ -341,6 +341,11 @@ def _end_game(table, winners_pool):
 
     chat_id = table["chat_id"]
 
+    # ALWAYS return remaining in-game chips to ALL players first
+    for pl in table["players"]:
+        if pl["chips"] > 0:
+            db.update_chips(pl["uid"], pl["chips"])
+
     if len(winners_pool) == 1:
         winner = winners_pool[0]
         db.update_chips(winner["uid"], table["pot"])
@@ -351,18 +356,18 @@ def _end_game(table, winners_pool):
         except: pass
     else:
         # Evaluate hands
-        all_cards = {p["uid"]: p["hole"] + table["community"] for p in winners_pool}
-        scores    = {p["uid"]: hand_rank(all_cards[p["uid"]]) for p in winners_pool}
+        all_cards = {pl["uid"]: pl["hole"] + table["community"] for pl in winners_pool}
+        scores    = {pl["uid"]: hand_rank(all_cards[pl["uid"]]) for pl in winners_pool}
         best      = max(scores.values())
-        winners   = [p for p in winners_pool if scores[p["uid"]] == best]
+        winners   = [pl for pl in winners_pool if scores[pl["uid"]] == best]
 
         share = table["pot"] // len(winners)
         lines = [f"🃏 *Showdown!*\n"]
 
-        for p in winners_pool:
-            score = scores[p["uid"]]
+        for pl in winners_pool:
+            score = scores[pl["uid"]]
             hname = HAND_NAMES[score[0]]
-            lines.append(f"• *{p['name']}*: {hand_str(p['hole'])} — _{hname}_")
+            lines.append(f"• *{pl['name']}*: {hand_str(pl['hole'])} — _{hname}_")
 
         lines.append("")
         if len(winners) == 1:
