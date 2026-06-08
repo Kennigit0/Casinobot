@@ -1074,6 +1074,136 @@ def cmd_referral(message):
         f"Share the link and grow the casino! 🎰",
         reply_markup=markup)
 
+
+# ── /rules ────────────────────────────────────────────────────────────
+RULES_PAGES = {
+    "poker": [
+        {
+            "title": "♠️ Poker — How to Play",
+            "text": (
+                "♠️ *Texas Hold'em Poker*\n\n"
+                "*Objective:* Win the pot by making the best 5-card hand "
+                "using your 2 hole cards + 5 community cards.\n\n"
+                "*Starting a game:*\n"
+                "`/poker [min_bet]` — Start a table\n"
+                "Others tap *Join Table* (60s window)\n"
+                "Host taps *Start Now* when ready\n\n"
+                "*Buy-in:* Up to 20× the blind (deducted from wallet)"
+            )
+        },
+        {
+            "title": "♠️ Poker — Game Flow",
+            "text": (
+                "♠️ *Poker — Game Flow*\n\n"
+                "1️⃣ *Hole cards* — sent to each player via *private DM*\n"
+                "2️⃣ *Pre-Flop* — betting round (SB & BB posted automatically)\n"
+                "3️⃣ *Flop* — 3 community cards revealed\n"
+                "4️⃣ *Turn* — 1 more card revealed\n"
+                "5️⃣ *River* — final card revealed\n"
+                "6️⃣ *Showdown* — best hand wins the pot!\n\n"
+                "*Actions each turn:*\n"
+                "❌ *Fold* — give up your hand\n"
+                "✅ *Check* — pass (if no bet)\n"
+                "📞 *Call* — match the current bet\n"
+                "⬆️ *Raise* — increase the bet (max 3 raises/round)\n\n"
+                "⏰ *60 seconds* to act — auto-fold on timeout!"
+            )
+        },
+        {
+            "title": "♠️ Poker — Hand Rankings",
+            "text": (
+                "♠️ *Poker — Hand Rankings* (best → worst)\n\n"
+                "1. 🏆 *Straight Flush* — 5 consecutive same suit\n"
+                "2. 4️⃣ *Four of a Kind* — 4 same rank\n"
+                "3. 🏠 *Full House* — 3 of a kind + pair\n"
+                "4. 🌊 *Flush* — 5 same suit\n"
+                "5. ➡️ *Straight* — 5 consecutive ranks\n"
+                "6. 3️⃣ *Three of a Kind* — 3 same rank\n"
+                "7. 2️⃣ *Two Pair* — two different pairs\n"
+                "8. 1️⃣ *One Pair* — two same rank\n"
+                "9. 🃏 *High Card* — highest card wins\n\n"
+                "_Tip: Best 5 cards from your 2 + 5 community cards!_"
+            )
+        },
+    ],
+    "blackjack": [
+        {
+            "title": "🃏 Blackjack — How to Play",
+            "text": (
+                "🃏 *Blackjack — How to Play*\n\n"
+                "*Objective:* Beat the dealer by getting closer to *21* "
+                "without going over (busting).\n\n"
+                "*Starting a game:*\n"
+                "`/bj [bet]` — Start a table\n"
+                "Others tap *Join Table* (2 min window)\n"
+                "Host taps *Start Now* when ready\n\n"
+                "*Card values:*\n"
+                "• Number cards = face value\n"
+                "• J, Q, K = 10\n"
+                "• Ace = 1 or 11 (whichever helps more)"
+            )
+        },
+        {
+            "title": "🃏 Blackjack — Actions",
+            "text": (
+                "🃏 *Blackjack — Actions*\n\n"
+                "👊 *Hit* — take another card\n"
+                "✋ *Stand* — keep your current hand\n\n"
+                "*Winning conditions:*\n"
+                "✅ *Blackjack* — Ace + 10-value card = 1.5× payout\n"
+                "✅ *Win* — closer to 21 than dealer = 1× payout\n"
+                "🤝 *Push* — tie with dealer = bet refunded\n"
+                "❌ *Lose* — dealer beats you or you bust\n\n"
+                "*Dealer rules:*\n"
+                "Dealer must hit until score ≥ 17\n"
+                "Dealer bust = all remaining players win!\n\n"
+                "_Tip: Never hit on 17+, always hit on 8 or below!_"
+            )
+        },
+    ]
+}
+
+def _rules_markup(game, page, total):
+    markup = types.InlineKeyboardMarkup()
+    nav = []
+    if page > 0:
+        nav.append(types.InlineKeyboardButton("◀ Prev", callback_data=f"rules_{game}_{page-1}"))
+    nav.append(types.InlineKeyboardButton(f"{page+1}/{total}", callback_data="rules_noop"))
+    if page < total-1:
+        nav.append(types.InlineKeyboardButton("Next ▶", callback_data=f"rules_{game}_{page+1}"))
+    if nav: markup.row(*nav)
+    # Switch game button
+    other = "blackjack" if game == "poker" else "poker"
+    other_label = "🃏 Blackjack Rules" if other == "blackjack" else "♠️ Poker Rules"
+    markup.add(types.InlineKeyboardButton(other_label, callback_data=f"rules_{other}_0"))
+    return markup
+
+@bot.message_handler(commands=["rules", "howtoplay"])
+def cmd_rules(message):
+    args  = message.text.split()
+    game  = "poker" if len(args) > 1 and "poker" in args[1].lower() else "blackjack"
+    pages = RULES_PAGES[game]
+    markup = _rules_markup(game, 0, len(pages))
+    bot.reply_to(message, pages[0]["text"], reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("rules_"))
+def cb_rules(call):
+    parts = call.data.split("_")
+    if parts[1] == "noop":
+        bot.answer_callback_query(call.id); return
+    game  = parts[1]
+    page  = int(parts[2])
+    pages = RULES_PAGES.get(game, [])
+    if not pages or page >= len(pages):
+        bot.answer_callback_query(call.id); return
+    markup = _rules_markup(game, page, len(pages))
+    bot.answer_callback_query(call.id)
+    try:
+        bot.edit_message_text(pages[page]["text"], call.message.chat.id,
+            call.message.message_id, reply_markup=markup, parse_mode="Markdown")
+    except: pass
+
+
 # ── Auto-cleanup stale BJ games + start polling ───────────────────────
 if __name__ == "__main__":
     from datetime import datetime, timedelta, timezone
