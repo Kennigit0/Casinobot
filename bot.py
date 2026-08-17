@@ -71,6 +71,13 @@ def cmd_start(message):
         except: pass
     if referrer_id:
         _pending_referrals[uid] = referrer_id
+        # Also save to DB in case bot restarts before age check
+        db.execute(
+            "INSERT INTO referrals (referrer_id, referee_id, created_at, rewarded) VALUES (?,?,?,0) "
+            "ON CONFLICT DO NOTHING" if db.get_conn()[1] == "pg" else
+            "INSERT OR IGNORE INTO referrals (referrer_id, referee_id, created_at, rewarded) VALUES (?,?,?,0)",
+            (referrer_id, uid, __import__("datetime").datetime.now().isoformat())
+        )
 
     existing = db.get_player(uid)
     if existing:
@@ -104,13 +111,22 @@ def cb_age(call):
                               call.message.chat.id, call.message.message_id); return
     db.register_player(uid, call.from_user.username, call.from_user.first_name)
     # Handle referral reward if applicable
+    # Check memory first, then DB as fallback (survives restarts)
     referrer_id_pending = _pending_referrals.pop(uid, None)
+    if not referrer_id_pending:
+        row = db.execute(
+            "SELECT referrer_id FROM referrals WHERE referee_id=? AND rewarded=0",
+            (uid,), fetch="one"
+        )
+        if row:
+            referrer_id_pending = row["referrer_id"] if isinstance(row, dict) else row[0]
     if referrer_id_pending:
-        referrer = db.get_player(call._referrer_id)
-        if referrer and db.save_referral(referrer_id_pending, uid):
+        referrer = db.get_player(referrer_id_pending)
+        if referrer:
             import gems as _gm
             _gm.add_gems(referrer_id_pending, 3)
             _gm.add_gems(uid, 1)
+            db.execute("UPDATE referrals SET rewarded=1 WHERE referee_id=?", (uid,))
             try:
                 bot.send_message(referrer_id_pending,
                     f"🎉 *Referral reward!*\n\n"
