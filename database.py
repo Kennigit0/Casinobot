@@ -291,7 +291,7 @@ def init_streaks_db():
         )
     """)
 
-def save_group(chat_id):
+def save_group(chat_id, title=None):
     """Save group chat_id so lottery/announcements can reach it"""
     existing = execute("SELECT chat_id FROM groups WHERE chat_id=?", (chat_id,), fetch="one")
     if not existing:

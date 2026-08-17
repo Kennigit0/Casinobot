@@ -446,6 +446,7 @@ def cmd_announce(message):
 def _auto_save_group(message):
     if message.chat.type in ("group", "supergroup"):
         db.save_group(message.chat.id)
+        # Also save when bot is added to a new group
 
 
 def cmd_group_to_play(message):

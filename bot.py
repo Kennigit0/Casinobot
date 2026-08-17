@@ -1220,6 +1220,20 @@ def cb_rules(call):
     except: pass
 
 
+
+@bot.my_chat_member_handler()
+def on_chat_member_update(update):
+    """Save group when bot is added"""
+    if update.new_chat_member.status in ("member","administrator"):
+        if update.chat.type in ("group","supergroup"):
+            db.save_group(update.chat.id)
+            try:
+                bot.send_message(update.chat.id,
+                    "👋 *Kenni\'s Casino is here!*\n\n"
+                    "Use /help to see all commands.\n"
+                    "Start the bot in DM first: /start")
+            except: pass
+
 # ── Auto-cleanup stale BJ games + start polling ───────────────────────
 if __name__ == "__main__":
     from datetime import datetime, timedelta, timezone
