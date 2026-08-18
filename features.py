@@ -610,6 +610,134 @@ def cmd_fixwallet(message):
     db.execute("UPDATE players SET chips=0 WHERE chips < 0")
     _bot.reply_to(message, f"✅ Fixed *{cnt}* negative wallet(s) — set to 0.")
 
+
+def cmd_seasonreset(message):
+    """Admin only — reset all player data for new season"""
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admin only!"); return
+
+    # Step 1: Show season winners before reset
+    rows = db.execute(
+        "SELECT first_name, chips, bank FROM players ORDER BY (chips + bank) DESC LIMIT 3",
+        fetch="all"
+    ) or []
+
+    medals  = ["🥇","🥈","🥉"]
+    lines   = ["🏆 *SEASON ENDING!*\n\n*Final Leaderboard:*\n"]
+    for i, r in enumerate(rows):
+        name2  = r["first_name"] if isinstance(r, dict) else r[0]
+        chips2 = (r["chips"] or 0) if isinstance(r, dict) else (r[1] or 0)
+        bank2  = (r["bank"]  or 0) if isinstance(r, dict) else (r[2] or 0)
+        lines.append(f"{medals[i]} *{name2}* — {fmt(chips2 + bank2):,} chips")
+
+    lines.append("\nType `/seasonreset confirm` to reset all players!")
+    _bot.reply_to(message, "\n".join(lines))
+
+def cmd_seasonreset_confirm(message):
+    """Admin only — actually execute the season reset"""
+    from config import Config
+    if message.from_user.id not in Config.ADMIN_IDS:
+        _bot.reply_to(message, "❌ Admin only!"); return
+
+    args = message.text.split()
+    if len(args) < 2 or args[1].lower() != "confirm":
+        _bot.reply_to(message, "Usage: `/seasonreset confirm`"); return
+
+    _bot.reply_to(message, "⏳ Running season reset...")
+
+    # Step 1: Archive top 10 before reset
+    rows = db.execute(
+        "SELECT user_id, first_name, chips, bank, xp FROM players ORDER BY (chips + bank) DESC LIMIT 10",
+        fetch="all"
+    ) or []
+
+    medals  = ["🥇","🥈","🥉"]
+    archive = ["🏆 *Season Champions*\n"]
+    for i, r in enumerate(rows[:3]):
+        uid2   = r["user_id"]   if isinstance(r, dict) else r[0]
+        name2  = r["first_name"] if isinstance(r, dict) else r[1]
+        chips2 = (r["chips"] or 0) if isinstance(r, dict) else (r[2] or 0)
+        bank2  = (r["bank"]  or 0) if isinstance(r, dict) else (r[3] or 0)
+        archive.append(f"{medals[i]} *{name2}* — {fmt(chips2 + bank2)} chips")
+        # Reward top 3 with bonus gems for winning the season
+        bonus_gems = [20, 10, 5][i]
+        db.execute("UPDATE players SET gems=COALESCE(gems,0)+? WHERE user_id=?", (bonus_gems, uid2))
+
+    # Step 2: Reset all player stats (keep gems, keep username/name)
+    from config import Config
+    db.execute("""
+        UPDATE players SET
+            chips        = ?,
+            bank         = 0,
+            bank_level   = 0,
+            xp           = 0,
+            wins         = 0,
+            losses       = 0,
+            best_streak  = 0,
+            total_earned = 0,
+            slots_played = 0,
+            bj_wins      = 0,
+            minigame_wins= 0,
+            trivia_wins  = 0,
+            fish_count   = 0,
+            mine_count   = 0,
+            farm_count   = 0,
+            max_bet      = 0,
+            last_daily   = NULL,
+            last_rob     = NULL,
+            last_interest= NULL,
+            last_game    = NULL
+        WHERE 1=1
+    """, (Config.STARTING_CHIPS,))
+
+    # Step 3: Clear achievements (so they can be re-earned)
+    db.execute("DELETE FROM achievements")
+
+    # Step 4: Clear lottery tickets and jackpot
+    db.execute("DELETE FROM lottery_tickets")
+    db.execute("UPDATE lottery_state SET value=? WHERE key='jackpot'", ("100000",))
+
+    # Step 5: Clear streaks
+    db.execute("UPDATE player_streaks SET streak=0")
+
+    # Step 6: Clear bounties
+    db.execute("DELETE FROM bounties")
+
+    # Step 7: Reset tools to starter (keep ownership but equip starter)
+    db.execute("""
+        UPDATE player_tools SET
+            fishing_tool = 'wooden_rod',
+            mining_tool  = 'stone_pickaxe',
+            farming_tool = 'bare_hands',
+            owned_tools  = '["wooden_rod","stone_pickaxe","bare_hands"]'
+    """)
+
+    # Step 8: Announce in all groups
+    season_msg = (
+        "🎰 *NEW SEASON HAS STARTED!*\n\n"
+        + "\n".join(archive) +
+        "\n\n"
+        "🏅 Top 3 received bonus gems as reward!\n\n"
+        "🔄 All player stats have been reset.\n"
+        "💎 Gems and clan memberships are kept.\n\n"
+        "Good luck this season! 🍀"
+    )
+    for chat_id in db.get_groups():
+        try: _bot.send_message(chat_id, season_msg)
+        except: pass
+
+    total = db.execute("SELECT COUNT(*) as cnt FROM players", fetch="one")
+    cnt   = (total["cnt"] if isinstance(total, dict) else total[0]) if total else 0
+    _bot.reply_to(message,
+        f"✅ *Season reset complete!*\n\n"
+        f"👥 Players reset: *{cnt}*\n"
+        f"💎 Gems kept\n"
+        f"⚔️ Clan memberships kept\n"
+        f"🏆 Top 3 rewarded with bonus gems\n"
+        f"📢 Announcement sent to all groups!")
+
+
 def register_features(bot_instance):
     
     bot_instance.register_callback_query_handler(
@@ -635,6 +763,7 @@ def register_features(bot_instance):
         (["group_to_play","grouptoplay"],cmd_group_to_play),
         (["announce"],                   cmd_announce),
         (["fixwallet"],                  cmd_fixwallet),
+        (["seasonreset"],                cmd_seasonreset_confirm),
         (["addchips"],                   cmd_addchips),
         (["removechips"],                cmd_removechips),
         (["addgems"],                    cmd_addgems),
